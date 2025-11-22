@@ -337,52 +337,27 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-[#050812] text-white">
-      <Header userPoints={userPoints} userRank={userRank} />
-      <div className="w-full p-6">
-        {/* Connection Status */}
-        {isSessionStarted && (
-          <div className="mb-3 text-center">
-            <span
-              className={`px-4 py-2 rounded text-sm font-medium ${
-                isConnected
-                  ? "bg-green-500/20 text-green-400 border border-green-500/30"
-                  : "bg-red-500/20 text-red-400 border border-red-500/30"
-              }`}
-            >
-              {isConnected ? "● Connected" : "● Disconnected"}
-            </span>
-          </div>
-        )}
-
-        {/* Device Signal Indicator */}
-        {deviceSignal && (
-          <div className="mb-3 text-center">
-            <div
-              className={`inline-block px-6 py-3 rounded-lg ${
-                deviceSignal.color
-                  ? getTrendColor(deviceSignal.color)
-                  : "bg-gray-600"
-              }`}
-            >
-              {deviceSignal.message ||
-                `LED: ${deviceSignal.color?.toUpperCase()}`}
-            </div>
-          </div>
-        )}
-
+      <Header
+        userPoints={userPoints}
+        userRank={userRank}
+        isConnected={isConnected}
+        isSessionStarted={isSessionStarted}
+        deviceSignal={deviceSignal}
+      />
+      <div className="w-full p-4">
         {/* Always show chart - trading requires tokens */}
         {priceHistory.length > 0 ? (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {/* Main Trading Area: Chart on Left, Buy/Sell on Right */}
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
               {/* TradingView Chart - Takes 3 columns */}
-              <div className="lg:col-span-3 bg-[#0a0e27] border border-[#1a1f3a] rounded-lg p-4">
-                <div className="flex items-center justify-between mb-4">
+              <div className="lg:col-span-3 bg-[#0a0e27] border border-[#1a1f3a] rounded-lg p-3">
+                <div className="flex items-center justify-between mb-2">
                   <div>
-                    <h2 className="text-xl font-semibold text-white mb-1">
+                    <h2 className="text-lg font-semibold text-white mb-1">
                       Price Chart
                     </h2>
-                    <p className="text-3xl font-bold text-white">
+                    <p className="text-2xl font-bold text-white">
                       $
                       {prices.length > 0
                         ? prices[prices.length - 1].toFixed(4)
@@ -408,10 +383,10 @@ export default function Home() {
                   </div>
                 </div>
                 {priceHistory.length > 0 && (
-                  <TradingViewChart data={priceHistory} height={350} />
+                  <TradingViewChart data={priceHistory} height={300} />
                 )}
                 {gameState && (
-                  <div className="mt-4 flex items-center justify-between text-sm">
+                  <div className="mt-2 flex items-center justify-between text-xs">
                     <div className="flex gap-4">
                       <div>
                         <span className="text-gray-400">Trend: </span>
@@ -491,11 +466,11 @@ export default function Home() {
 
                 {/* Trading Buttons - Show when session is started */}
                 {isSessionStarted && (
-                  <div className="bg-[#0a0e27] border border-[#1a1f3a] rounded-lg p-6">
-                    <h2 className="text-xl font-semibold mb-4 text-white">
+                  <div className="bg-[#0a0e27] border border-[#1a1f3a] rounded-lg p-4">
+                    <h2 className="text-lg font-semibold mb-3 text-white">
                       Trading
                     </h2>
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       <button
                         onClick={() => handleTrade("buy")}
                         disabled={!hasTokens || !isSessionStarted}
@@ -530,27 +505,27 @@ export default function Home() {
 
                 {/* Portfolio Summary */}
                 {gameState && (
-                  <div className="bg-[#0a0e27] border border-[#1a1f3a] rounded-lg p-6">
-                    <h2 className="text-xl font-semibold mb-4 text-white">
+                  <div className="bg-[#0a0e27] border border-[#1a1f3a] rounded-lg p-4">
+                    <h2 className="text-lg font-semibold mb-3 text-white">
                       Portfolio
                     </h2>
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       <div>
-                        <p className="text-gray-400 text-sm">USD Balance</p>
-                        <p className="text-2xl font-bold text-white">
+                        <p className="text-gray-400 text-xs">USD Balance</p>
+                        <p className="text-xl font-bold text-white">
                           ${gameState.user.portfolio.balanceUSD.toFixed(2)}
                         </p>
                       </div>
                       <div>
-                        <p className="text-gray-400 text-sm">Token Balance</p>
-                        <p className="text-2xl font-bold text-white">
+                        <p className="text-gray-400 text-xs">Token Balance</p>
+                        <p className="text-xl font-bold text-white">
                           {gameState.user.portfolio.balanceToken.toFixed(4)}
                         </p>
                       </div>
                       <div>
-                        <p className="text-gray-400 text-sm">Realized PnL</p>
+                        <p className="text-gray-400 text-xs">Realized PnL</p>
                         <p
-                          className={`text-xl font-bold ${
+                          className={`text-lg font-bold ${
                             gameState.user.portfolio.realizedPnl >= 0
                               ? "text-green-400"
                               : "text-red-400"
