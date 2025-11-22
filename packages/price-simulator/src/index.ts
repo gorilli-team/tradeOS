@@ -1,4 +1,4 @@
-import { PriceSimulatorConfig, TrendSignal, PriceTick } from "tradeOS/types";
+import { PriceSimulatorConfig, TrendSignal, PriceTick } from "@tradeOS/types";
 
 export class PriceSimulator {
   private config: PriceSimulatorConfig;

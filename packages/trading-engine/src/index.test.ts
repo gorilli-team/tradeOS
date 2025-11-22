@@ -1,5 +1,5 @@
 import { buy, sell, panicExit, getUnrealizedPnl, validateTrade } from "./index";
-import { Portfolio, DifficultyMode } from "tradeOS/types";
+import { Portfolio, DifficultyMode } from "@tradeOS/types";
 
 describe("TradingEngine", () => {
   const initialPortfolio: Portfolio = {

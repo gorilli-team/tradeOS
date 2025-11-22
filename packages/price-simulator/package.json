@@ -1,5 +1,5 @@
 {
-  "name": "tradeOS/price-simulator",
+  "name": "@tradeOS/price-simulator",
   "version": "1.0.0",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -9,7 +9,7 @@
     "test": "jest"
   },
   "dependencies": {
-    "tradeOS/types": "workspace:*"
+    "@tradeOS/types": "workspace:*"
   },
   "devDependencies": {
     "@types/jest": "^29.5.0",
