@@ -17,6 +17,18 @@ importers:
 
   apps/backend:
     dependencies:
+      '@tradeOS/price-simulator':
+        specifier: workspace:*
+        version: link:../../packages/price-simulator
+      '@tradeOS/trading-engine':
+        specifier: workspace:*
+        version: link:../../packages/trading-engine
+      '@tradeOS/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@tradeOS/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
       cors:
         specifier: ^2.8.5
         version: 2.8.5
