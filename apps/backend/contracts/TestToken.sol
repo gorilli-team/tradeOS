@@ -10,7 +10,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 contract TestToken is ERC20 {
     constructor() ERC20("TradeOS Test Token", "TOS") {
         // Mint initial supply to deployer
-        _mint(msg.sender, 1000000 * 10**decimals());
+        _mint(msg.sender, 1000000 * 10 ** decimals());
     }
 
     /**
@@ -22,4 +22,3 @@ contract TestToken is ERC20 {
         _mint(to, amount);
     }
 }
-

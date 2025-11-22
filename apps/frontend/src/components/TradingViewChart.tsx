@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { createChart, IChartApi, ISeriesApi, ColorType } from "lightweight-charts";
+import { createChart, ColorType, LineSeries } from "lightweight-charts";
+import type { IChartApi, ISeriesApi } from "lightweight-charts";
 import { PriceTick } from "@tradeOS/types";
 
 interface TradingViewChartProps {
@@ -15,13 +16,13 @@ export default function TradingViewChart({
 }: TradingViewChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
-  const seriesRef = useRef<ISeriesApi<"Area"> | null>(null);
+  const seriesRef = useRef<ISeriesApi<"Line"> | null>(null);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
     // Create chart
-    const chart = createChart(chartContainerRef.current, {
+    const chart: IChartApi = createChart(chartContainerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: "#0a0e27" },
         textColor: "#9ca3af",
@@ -47,15 +48,18 @@ export default function TradingViewChart({
 
     chartRef.current = chart;
 
-    // Create area series
-    const areaSeries = chart.addAreaSeries({
-      lineColor: "#10b981",
-      topColor: "rgba(16, 185, 129, 0.2)",
-      bottomColor: "rgba(16, 185, 129, 0)",
-      lineWidth: 2,
-    });
-
-    seriesRef.current = areaSeries;
+    // In lightweight-charts v5, use addSeries with LineSeries definition
+    try {
+      const lineSeries = chart.addSeries(LineSeries, {
+        color: "#10b981",
+        lineWidth: 2,
+        priceLineVisible: false,
+        lastValueVisible: true,
+      });
+      seriesRef.current = lineSeries;
+    } catch (error) {
+      console.error("Error creating line series:", error);
+    }
 
     // Handle resize
     const handleResize = () => {
@@ -70,7 +74,9 @@ export default function TradingViewChart({
 
     return () => {
       window.removeEventListener("resize", handleResize);
-      chart.remove();
+      if (chartRef.current) {
+        chartRef.current.remove();
+      }
     };
   }, [height]);
 
@@ -84,11 +90,15 @@ export default function TradingViewChart({
       value: tick.price,
     }));
 
-    seriesRef.current.setData(chartData);
-    
-    // Auto-scroll to the end
-    if (chartRef.current) {
-      chartRef.current.timeScale().scrollToPosition(-1, false);
+    try {
+      seriesRef.current.setData(chartData);
+
+      // Auto-scroll to the end
+      if (chartRef.current) {
+        chartRef.current.timeScale().scrollToPosition(-1, false);
+      }
+    } catch (error) {
+      console.error("Error setting chart data:", error);
     }
   }, [data]);
 
@@ -100,4 +110,3 @@ export default function TradingViewChart({
     />
   );
 }
-

@@ -16,27 +16,28 @@ export function generateHistoricalPrices(
   const now = Date.now();
   const intervalMs = intervalMinutes * 60 * 1000;
   const totalPoints = (hours * 60) / intervalMinutes;
-  
+
   let currentPrice = initialPrice;
   const volatility = 0.015; // 1.5% volatility per tick
-  
+
   // Generate prices going backwards in time
   for (let i = totalPoints; i >= 0; i--) {
-    const timestamp = now - (i * intervalMs);
-    
+    const timestamp = now - i * intervalMs;
+
     // Random walk with slight upward bias
     const change = (Math.random() - 0.45) * volatility; // Slight upward bias
     currentPrice = currentPrice * (1 + change);
-    
+
     // Ensure price doesn't go below 0.1
     currentPrice = Math.max(0.1, currentPrice);
-    
+
     // Determine trend
     let trend: TrendSignal = "sideways";
     if (i > 0) {
-      const prevPrice = prices.length > 0 ? prices[prices.length - 1].price : initialPrice;
+      const prevPrice =
+        prices.length > 0 ? prices[prices.length - 1].price : initialPrice;
       const priceChange = ((currentPrice - prevPrice) / prevPrice) * 100;
-      
+
       if (priceChange > 2) {
         trend = "up";
       } else if (priceChange < -2) {
@@ -47,14 +48,13 @@ export function generateHistoricalPrices(
         trend = "sideways";
       }
     }
-    
+
     prices.push({
       price: Math.round(currentPrice * 10000) / 10000, // Round to 4 decimals
       timestamp,
       trend,
     });
   }
-  
+
   return prices;
 }
-

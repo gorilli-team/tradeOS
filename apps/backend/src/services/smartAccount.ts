@@ -1,14 +1,26 @@
 import { AlchemyProvider } from "@alchemy/aa-alchemy";
-import { LightSmartContractAccount, getDefaultLightAccountFactoryAddress } from "@alchemy/aa-accounts";
+import {
+  LightSmartContractAccount,
+  getDefaultLightAccountFactoryAddress,
+} from "@alchemy/aa-accounts";
 import { sepolia } from "viem/chains";
-import { type Address, createWalletClient, http, privateKeyToAccount } from "viem";
+import {
+  type Address,
+  createWalletClient,
+  http,
+  privateKeyToAccount,
+} from "viem";
 import { LocalAccountSigner } from "@alchemy/aa-core";
 
 const RPC_URL = process.env.ALCHEMY_RPC_URL || process.env.RPC_URL;
-const PRIVATE_KEY = process.env.PRIVATE_KEY || "0x0000000000000000000000000000000000000000000000000000000000000001";
+const PRIVATE_KEY =
+  process.env.PRIVATE_KEY ||
+  "0x0000000000000000000000000000000000000000000000000000000000000001";
 
 if (!RPC_URL) {
-  console.warn("ALCHEMY_RPC_URL or RPC_URL not set. Smart accounts will not work.");
+  console.warn(
+    "ALCHEMY_RPC_URL or RPC_URL not set. Smart accounts will not work."
+  );
 }
 
 export interface SmartAccountInfo {
@@ -25,14 +37,16 @@ export async function getOrCreateSmartAccount(
   ownerAddress: Address
 ): Promise<SmartAccountInfo> {
   if (!RPC_URL) {
-    throw new Error("RPC_URL not configured. Please set ALCHEMY_RPC_URL or RPC_URL environment variable.");
+    throw new Error(
+      "RPC_URL not configured. Please set ALCHEMY_RPC_URL or RPC_URL environment variable."
+    );
   }
 
   try {
     // Extract API key from RPC URL if it's an Alchemy URL
     let apiKey: string | undefined;
     let rpcUrl: string = RPC_URL;
-    
+
     if (RPC_URL.includes("alchemy.com")) {
       const parts = RPC_URL.split("/");
       apiKey = parts[parts.length - 1];
@@ -74,4 +88,3 @@ export async function getOrCreateSmartAccount(
     throw error;
   }
 }
-

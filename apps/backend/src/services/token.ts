@@ -1,9 +1,21 @@
-import { createPublicClient, http, createWalletClient, formatEther, parseEther, type Address } from "viem";
+import {
+  createPublicClient,
+  http,
+  createWalletClient,
+  formatEther,
+  parseEther,
+  type Address,
+} from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { sepolia } from "viem/chains";
 
-const RPC_URL = process.env.ALCHEMY_RPC_URL || process.env.RPC_URL || "https://eth-sepolia.g.alchemy.com/v2/YOUR_API_KEY";
-const PRIVATE_KEY = process.env.PRIVATE_KEY || "0x0000000000000000000000000000000000000000000000000000000000000001";
+const RPC_URL =
+  process.env.ALCHEMY_RPC_URL ||
+  process.env.RPC_URL ||
+  "https://eth-sepolia.g.alchemy.com/v2/YOUR_API_KEY";
+const PRIVATE_KEY =
+  process.env.PRIVATE_KEY ||
+  "0x0000000000000000000000000000000000000000000000000000000000000001";
 
 // Simple ERC20 Token ABI (minimal interface for transfers)
 const ERC20_ABI = [
@@ -35,7 +47,9 @@ const ERC20_ABI = [
 
 // Test token address on Sepolia (using a common test token or deploy our own)
 // For now, we'll use USDC on Sepolia or create a simple airdrop contract
-const TEST_TOKEN_ADDRESS = process.env.TEST_TOKEN_ADDRESS as Address | undefined;
+const TEST_TOKEN_ADDRESS = process.env.TEST_TOKEN_ADDRESS as
+  | Address
+  | undefined;
 
 export interface TokenBalance {
   address: Address;
@@ -56,7 +70,7 @@ export async function airdropTokens(
 
   try {
     const account = privateKeyToAccount(PRIVATE_KEY as `0x${string}`);
-    
+
     const publicClient = createPublicClient({
       chain: sepolia,
       transport: http(RPC_URL),
@@ -93,9 +107,9 @@ export async function airdropTokens(
     return { success: true, txHash: hash };
   } catch (error: any) {
     console.error("Error airdropping tokens:", error);
-    return { 
-      success: false, 
-      error: error?.message || "Failed to airdrop tokens" 
+    return {
+      success: false,
+      error: error?.message || "Failed to airdrop tokens",
     };
   }
 }
@@ -156,4 +170,3 @@ export async function getTokenBalance(
     return null;
   }
 }
-

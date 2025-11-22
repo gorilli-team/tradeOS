@@ -25,7 +25,10 @@ export async function createAccountAndAirdrop(
 
     // Step 2: Airdrop tokens to the smart account
     console.log(`Airdropping ${tokenAmount} tokens to ${smartAccount.address}`);
-    const airdropResult = await airdropTokens(smartAccount.address, tokenAmount);
+    const airdropResult = await airdropTokens(
+      smartAccount.address,
+      tokenAmount
+    );
 
     if (!airdropResult.success) {
       return {
@@ -52,4 +55,3 @@ export async function createAccountAndAirdrop(
     };
   }
 }
-

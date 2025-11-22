@@ -128,7 +128,8 @@ export function generateAISignal(
 
   // Calculate price momentum
   const recentPrices = priceHistory.slice(-10).map((t) => t.price);
-  const priceChange = ((currentPrice - recentPrices[0]) / recentPrices[0]) * 100;
+  const priceChange =
+    ((currentPrice - recentPrices[0]) / recentPrices[0]) * 100;
 
   // Calculate volatility
   const priceStdDev = calculateStandardDeviation(recentPrices);
@@ -201,9 +202,7 @@ export function generateAISignal(
   if (volatility > 10) reasons.push("High volatility warning");
 
   const reasoning =
-    reasons.length > 0
-      ? reasons.join("; ")
-      : "Market conditions are neutral";
+    reasons.length > 0 ? reasons.join("; ") : "Market conditions are neutral";
 
   return {
     signal,
@@ -223,4 +222,3 @@ function calculateStandardDeviation(values: number[]): number {
     squareDiffs.reduce((a, b) => a + b, 0) / squareDiffs.length;
   return Math.sqrt(avgSquareDiff);
 }
-

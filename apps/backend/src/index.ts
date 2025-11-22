@@ -239,118 +239,128 @@ app.get("/state", (req: express.Request, res: express.Response) => {
   });
 });
 
-app.post("/session/start", async (req: express.Request, res: express.Response) => {
-  const userId = req.body.userId || "default";
-  const difficulty = (req.body.difficulty || "noob") as DifficultyMode;
-  const ownerAddress = req.body.ownerAddress as Address | undefined;
+app.post(
+  "/session/start",
+  async (req: express.Request, res: express.Response) => {
+    const userId = req.body.userId || "default";
+    const difficulty = (req.body.difficulty || "noob") as DifficultyMode;
+    const ownerAddress = req.body.ownerAddress as Address | undefined;
 
-  // Stop existing simulator if any
-  const existingSimulator = priceSimulators.get(userId);
-  if (existingSimulator) {
-    existingSimulator.stop();
-  }
+    // Stop existing simulator if any
+    const existingSimulator = priceSimulators.get(userId);
+    if (existingSimulator) {
+      existingSimulator.stop();
+    }
 
-  // Create or reset user
-  const user = createUser(userId, difficulty);
-  users.set(userId, user);
+    // Create or reset user
+    const user = createUser(userId, difficulty);
+    users.set(userId, user);
 
-  // Create smart account and airdrop tokens if owner address is provided
-  let smartAccountAddress: Address | undefined;
-  let airdropResult: { success: boolean; txHash?: string; error?: string } | undefined;
+    // Create smart account and airdrop tokens if owner address is provided
+    let smartAccountAddress: Address | undefined;
+    let airdropResult:
+      | { success: boolean; txHash?: string; error?: string }
+      | undefined;
 
-  if (ownerAddress) {
-    try {
-      console.log(`Creating smart account for user ${userId} with owner ${ownerAddress}`);
-      const result = await createAccountAndAirdrop(ownerAddress, "1000");
-      
-      if (result.success && result.smartAccountAddress) {
-        smartAccountAddress = result.smartAccountAddress;
-        smartAccounts.set(userId, smartAccountAddress);
-        airdropResult = {
-          success: true,
-          txHash: result.txHash,
-        };
-        console.log(`Smart account created: ${smartAccountAddress}, Airdrop tx: ${result.txHash}`);
-      } else {
-        console.error(`Failed to create smart account: ${result.error}`);
+    if (ownerAddress) {
+      try {
+        console.log(
+          `Creating smart account for user ${userId} with owner ${ownerAddress}`
+        );
+        const result = await createAccountAndAirdrop(ownerAddress, "1000");
+
+        if (result.success && result.smartAccountAddress) {
+          smartAccountAddress = result.smartAccountAddress;
+          smartAccounts.set(userId, smartAccountAddress);
+          airdropResult = {
+            success: true,
+            txHash: result.txHash,
+          };
+          console.log(
+            `Smart account created: ${smartAccountAddress}, Airdrop tx: ${result.txHash}`
+          );
+        } else {
+          console.error(`Failed to create smart account: ${result.error}`);
+          airdropResult = {
+            success: false,
+            error: result.error,
+          };
+        }
+      } catch (error: any) {
+        console.error("Error creating smart account:", error);
         airdropResult = {
           success: false,
-          error: result.error,
+          error: error?.message || "Unknown error",
         };
       }
-    } catch (error: any) {
-      console.error("Error creating smart account:", error);
-      airdropResult = {
-        success: false,
-        error: error?.message || "Unknown error",
-      };
     }
-  }
 
-  // Generate historical prices (24 hours of data, 1-minute intervals)
-  const historicalPrices = generateHistoricalPrices(1.0, 24, 1);
-  const lastHistoricalPrice = historicalPrices[historicalPrices.length - 1]?.price || 1.0;
+    // Generate historical prices (24 hours of data, 1-minute intervals)
+    const historicalPrices = generateHistoricalPrices(1.0, 24, 1);
+    const lastHistoricalPrice =
+      historicalPrices[historicalPrices.length - 1]?.price || 1.0;
 
-  // Start price simulator with the last historical price as initial
-  const simulator = new PriceSimulator({
-    initialPrice: lastHistoricalPrice,
-    volatility: 0.02,
-    difficulty,
-    tickInterval: 1000,
-  });
+    // Start price simulator with the last historical price as initial
+    const simulator = new PriceSimulator({
+      initialPrice: lastHistoricalPrice,
+      volatility: 0.02,
+      difficulty,
+      tickInterval: 1000,
+    });
 
-  priceSimulators.set(userId, simulator);
+    priceSimulators.set(userId, simulator);
 
-  // Send initial historical prices to all connected clients
-  const userClients = clients.get(userId);
-  if (userClients) {
-    historicalPrices.forEach((tick) => {
-      const message = JSON.stringify({ type: "price", data: tick });
-      userClients.forEach((client) => {
-        if (client.readyState === 1) {
-          client.send(message);
-        }
+    // Send initial historical prices to all connected clients
+    const userClients = clients.get(userId);
+    if (userClients) {
+      historicalPrices.forEach((tick) => {
+        const message = JSON.stringify({ type: "price", data: tick });
+        userClients.forEach((client) => {
+          if (client.readyState === 1) {
+            client.send(message);
+          }
+        });
+      });
+    }
+
+    simulator.start((price: number, trend: TrendSignal) => {
+      const tick: PriceTick = {
+        price,
+        timestamp: Date.now(),
+        trend,
+      };
+
+      // Broadcast price update to WebSocket clients
+      broadcastPriceUpdate(userId, tick);
+
+      // Broadcast device signal based on trend
+      const colorMap: Record<
+        TrendSignal,
+        "green" | "red" | "yellow" | "purple" | "orange"
+      > = {
+        up: "green",
+        down: "red",
+        sideways: "yellow",
+        whale: "purple",
+        rug: "orange",
+      };
+
+      broadcastDeviceSignal(userId, {
+        type: "led",
+        color: colorMap[trend],
       });
     });
-  }
 
-  simulator.start((price: number, trend: TrendSignal) => {
-    const tick: PriceTick = {
-      price,
-      timestamp: Date.now(),
-      trend,
-    };
-
-    // Broadcast price update to WebSocket clients
-    broadcastPriceUpdate(userId, tick);
-
-    // Broadcast device signal based on trend
-    const colorMap: Record<
-      TrendSignal,
-      "green" | "red" | "yellow" | "purple" | "orange"
-    > = {
-      up: "green",
-      down: "red",
-      sideways: "yellow",
-      whale: "purple",
-      rug: "orange",
-    };
-
-    broadcastDeviceSignal(userId, {
-      type: "led",
-      color: colorMap[trend],
+    res.json({
+      success: true,
+      userId,
+      difficulty,
+      smartAccountAddress,
+      airdrop: airdropResult,
+      initialPriceHistory: historicalPrices, // Send initial history
     });
-  });
-
-  res.json({ 
-    success: true, 
-    userId, 
-    difficulty,
-    smartAccountAddress,
-    airdrop: airdropResult,
-    initialPriceHistory: historicalPrices, // Send initial history
-  });
-});
+  }
+);
 
 app.post("/session/reset", (req: express.Request, res: express.Response) => {
   const userId = req.body.userId || "default";
