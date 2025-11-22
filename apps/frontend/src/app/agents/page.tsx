@@ -311,17 +311,19 @@ export default function AgentsPage() {
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-gray-400">Points:</span>
                       <span className="text-white font-semibold">
-                        {agent.totalPoints.toLocaleString()}
+                        {(agent.totalPoints || 0).toLocaleString()}
                       </span>
                     </div>
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-gray-400">Trades:</span>
-                      <span className="text-white">{agent.totalTrades}</span>
+                      <span className="text-white">
+                        {agent.totalTrades || 0}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-gray-400">Volume:</span>
                       <span className="text-white">
-                        ${agent.totalVolume.toFixed(2)}
+                        ${(agent.totalVolume || 0).toFixed(2)}
                       </span>
                     </div>
                   </div>
