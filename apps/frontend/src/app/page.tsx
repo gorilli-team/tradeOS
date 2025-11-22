@@ -338,7 +338,7 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-[#050812] text-white">
       <Header userPoints={userPoints} userRank={userRank} />
-      <div className="max-w-7xl mx-auto p-6">
+      <div className="w-full p-6">
         {/* Connection Status */}
         {isSessionStarted && (
           <div className="mb-3 text-center">

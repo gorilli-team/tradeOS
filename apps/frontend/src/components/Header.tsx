@@ -14,7 +14,7 @@ export default function Header({ userPoints = 0, userRank }: HeaderProps) {
 
   return (
     <header className="bg-[#0a0e27] border-b border-[#1a1f3a] sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="w-full px-6 py-4">
         <div className="flex items-center justify-between">
           {/* Logo and Title */}
           <div className="flex items-center gap-4">
