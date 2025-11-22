@@ -51,7 +51,7 @@ export default function Home() {
           body: JSON.stringify({ userId: "public" }),
         });
         const result = await response.json();
-        
+
         if (result.initialPriceHistory) {
           setPriceHistory(result.initialPriceHistory);
         }
@@ -338,43 +338,6 @@ export default function Home() {
     <main className="min-h-screen bg-[#050812] text-white">
       <Header userPoints={userPoints} userRank={userRank} />
       <div className="max-w-7xl mx-auto p-8">
-        {/* Session Start Button - Only show when wallet connected but session not started */}
-        {authenticated && !isSessionStarted && (
-          <div className="mb-6 text-center">
-            <div className="space-y-2">
-              {smartAccountAddress && (
-                <div className="text-xs text-gray-500">
-                  Smart Account: {smartAccountAddress.slice(0, 6)}...
-                  {smartAccountAddress.slice(-4)}
-                </div>
-              )}
-              {airdropTxHash && (
-                <div className="text-xs">
-                  <a
-                    href={`https://sepolia.etherscan.io/tx/${airdropTxHash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-400 hover:text-blue-300 underline"
-                  >
-                    View Airdrop TX
-                  </a>
-                </div>
-              )}
-              {!hasTokens && (
-                <div className="text-xs text-yellow-400 bg-yellow-400/10 border border-yellow-400/30 rounded p-2 inline-block">
-                  ⚠️ No tokens detected. Start a session to receive test tokens.
-                </div>
-              )}
-              <button
-                onClick={startSession}
-                className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-colors"
-              >
-                Start Trading Session
-              </button>
-            </div>
-          </div>
-        )}
-
         {/* Connection Status */}
         {isSessionStarted && (
           <div className="mb-4 text-center">
@@ -419,7 +382,10 @@ export default function Home() {
                       Price Chart
                     </h2>
                     <p className="text-3xl font-bold text-white">
-                      ${prices.length > 0 ? prices[prices.length - 1].toFixed(4) : "0.0000"}
+                      $
+                      {prices.length > 0
+                        ? prices[prices.length - 1].toFixed(4)
+                        : "0.0000"}
                     </p>
                   </div>
                   <div className="text-right">
@@ -481,41 +447,85 @@ export default function Home() {
 
               {/* Buy/Sell Buttons - Takes 1 column */}
               <div className="space-y-4">
-                <div className="bg-[#0a0e27] border border-[#1a1f3a] rounded-lg p-6">
-                  <h2 className="text-xl font-semibold mb-4 text-white">
-                    Trading
-                  </h2>
-                  <div className="space-y-3">
-                    <button
-                      onClick={() => handleTrade("buy")}
-                      disabled={!hasTokens || !isSessionStarted}
-                      className={`w-full font-bold py-4 px-4 rounded border transition-colors text-lg ${
-                        hasTokens && isSessionStarted
-                          ? "bg-green-500/20 hover:bg-green-500/30 text-green-400 border-green-500/30"
-                          : "bg-gray-500/20 text-gray-500 border-gray-500/30 cursor-not-allowed"
-                      }`}
-                    >
-                      {!hasTokens ? "NO TOKENS" : "BUY"}
-                    </button>
-                    <button
-                      onClick={() => handleTrade("sell")}
-                      disabled={!hasTokens || !isSessionStarted}
-                      className={`w-full font-bold py-4 px-4 rounded border transition-colors text-lg ${
-                        hasTokens && isSessionStarted
-                          ? "bg-red-500/20 hover:bg-red-500/30 text-red-400 border-red-500/30"
-                          : "bg-gray-500/20 text-gray-500 border-gray-500/30 cursor-not-allowed"
-                      }`}
-                    >
-                      {!hasTokens ? "NO TOKENS" : "SELL"}
-                    </button>
-                    <button
-                      onClick={() => handleTrade("panic")}
-                      className="w-full bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 font-bold py-3 px-4 rounded border border-orange-500/30 transition-colors"
-                    >
-                      PANIC EXIT
-                    </button>
+                {/* Session Start - Show when wallet connected but session not started */}
+                {authenticated && !isSessionStarted && (
+                  <div className="bg-[#0a0e27] border border-[#1a1f3a] rounded-lg p-6">
+                    <h2 className="text-xl font-semibold mb-4 text-white">
+                      Get Started
+                    </h2>
+                    <div className="space-y-3">
+                      {smartAccountAddress && (
+                        <div className="text-xs text-gray-500 mb-2">
+                          Smart Account: {smartAccountAddress.slice(0, 6)}...
+                          {smartAccountAddress.slice(-4)}
+                        </div>
+                      )}
+                      {airdropTxHash && (
+                        <div className="text-xs mb-2">
+                          <a
+                            href={`https://sepolia.etherscan.io/tx/${airdropTxHash}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-400 hover:text-blue-300 underline"
+                          >
+                            View Airdrop TX
+                          </a>
+                        </div>
+                      )}
+                      {!hasTokens && (
+                        <div className="text-xs text-yellow-400 bg-yellow-400/10 border border-yellow-400/30 rounded p-2">
+                          ⚠️ No tokens detected. Start a session to receive test
+                          tokens.
+                        </div>
+                      )}
+                      <button
+                        onClick={startSession}
+                        className="w-full px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-colors"
+                      >
+                        Start Trading Session
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {/* Trading Buttons - Show when session is started */}
+                {isSessionStarted && (
+                  <div className="bg-[#0a0e27] border border-[#1a1f3a] rounded-lg p-6">
+                    <h2 className="text-xl font-semibold mb-4 text-white">
+                      Trading
+                    </h2>
+                    <div className="space-y-3">
+                      <button
+                        onClick={() => handleTrade("buy")}
+                        disabled={!hasTokens || !isSessionStarted}
+                        className={`w-full font-bold py-4 px-4 rounded border transition-colors text-lg ${
+                          hasTokens && isSessionStarted
+                            ? "bg-green-500/20 hover:bg-green-500/30 text-green-400 border-green-500/30"
+                            : "bg-gray-500/20 text-gray-500 border-gray-500/30 cursor-not-allowed"
+                        }`}
+                      >
+                        {!hasTokens ? "NO TOKENS" : "BUY"}
+                      </button>
+                      <button
+                        onClick={() => handleTrade("sell")}
+                        disabled={!hasTokens || !isSessionStarted}
+                        className={`w-full font-bold py-4 px-4 rounded border transition-colors text-lg ${
+                          hasTokens && isSessionStarted
+                            ? "bg-red-500/20 hover:bg-red-500/30 text-red-400 border-red-500/30"
+                            : "bg-gray-500/20 text-gray-500 border-gray-500/30 cursor-not-allowed"
+                        }`}
+                      >
+                        {!hasTokens ? "NO TOKENS" : "SELL"}
+                      </button>
+                      <button
+                        onClick={() => handleTrade("panic")}
+                        className="w-full bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 font-bold py-3 px-4 rounded border border-orange-500/30 transition-colors"
+                      >
+                        PANIC EXIT
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Portfolio Summary */}
                 {gameState && (

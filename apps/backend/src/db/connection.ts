@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/tradeOS";
+const MONGODB_URI =
+  process.env.MONGODB_URI || "mongodb://localhost:27017/tradeOS";
 
 interface MongooseCache {
   conn: typeof mongoose | null;
@@ -11,7 +12,10 @@ declare global {
   var mongooseCache: MongooseCache | undefined;
 }
 
-let cached: MongooseCache = global.mongooseCache || { conn: null, promise: null };
+let cached: MongooseCache = global.mongooseCache || {
+  conn: null,
+  promise: null,
+};
 
 if (!global.mongooseCache) {
   global.mongooseCache = cached;
@@ -20,8 +24,12 @@ if (!global.mongooseCache) {
 async function connectDB() {
   // Check if MongoDB URI is set
   if (!MONGODB_URI || MONGODB_URI === "mongodb://localhost:27017/tradeOS") {
-    console.warn("⚠️  MONGODB_URI not set. Using default: mongodb://localhost:27017/tradeOS");
-    console.warn("⚠️  Make sure MongoDB is running locally or set MONGODB_URI environment variable");
+    console.warn(
+      "⚠️  MONGODB_URI not set. Using default: mongodb://localhost:27017/tradeOS"
+    );
+    console.warn(
+      "⚠️  Make sure MongoDB is running locally or set MONGODB_URI environment variable"
+    );
   }
 
   if (cached.conn) {
@@ -46,9 +54,13 @@ async function connectDB() {
       .catch((error) => {
         console.error("❌ MongoDB connection error:", error.message);
         console.error("💡 Make sure MongoDB is running:");
-        console.error("   - Local: mongod or brew services start mongodb-community");
+        console.error(
+          "   - Local: mongod or brew services start mongodb-community"
+        );
         console.error("   - Or set MONGODB_URI to a remote MongoDB instance");
-        console.error("   - Or use MongoDB Atlas: mongodb+srv://user:pass@cluster.mongodb.net/db");
+        console.error(
+          "   - Or use MongoDB Atlas: mongodb+srv://user:pass@cluster.mongodb.net/db"
+        );
         cached.promise = null;
         throw error;
       });

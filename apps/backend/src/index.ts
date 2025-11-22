@@ -52,7 +52,9 @@ connectDB()
   .catch((error) => {
     console.error("❌ MongoDB connection failed:", error.message);
     console.warn("⚠️  App will continue but trades won't be saved to database");
-    console.warn("⚠️  To fix: Start MongoDB or set MONGODB_URI environment variable");
+    console.warn(
+      "⚠️  To fix: Start MongoDB or set MONGODB_URI environment variable"
+    );
   });
 
 // In-memory state (in production, use a database)
@@ -134,13 +136,17 @@ app.post("/trade/buy", async (req: express.Request, res: express.Response) => {
     }
 
     // Calculate position size
-    const positionSize = data.amount !== undefined
-      ? data.amount
-      : user.difficulty === "noob"
-      ? 50
-      : user.difficulty === "degen"
-      ? user.portfolio.balanceUSD * 0.1
-      : Math.min(user.portfolio.balanceUSD * 0.25, user.portfolio.balanceUSD * 0.5);
+    const positionSize =
+      data.amount !== undefined
+        ? data.amount
+        : user.difficulty === "noob"
+        ? 50
+        : user.difficulty === "degen"
+        ? user.portfolio.balanceUSD * 0.1
+        : Math.min(
+            user.portfolio.balanceUSD * 0.25,
+            user.portfolio.balanceUSD * 0.5
+          );
     const newPortfolio = buy(
       user.portfolio,
       currentPrice,
@@ -150,7 +156,10 @@ app.post("/trade/buy", async (req: express.Request, res: express.Response) => {
     const pnlChange = newPortfolio.realizedPnl - user.portfolio.realizedPnl;
 
     // Calculate points (based on trade size and difficulty)
-    const pointsEarned = Math.floor(positionSize * (user.difficulty === "pro" ? 2 : user.difficulty === "degen" ? 1.5 : 1));
+    const pointsEarned = Math.floor(
+      positionSize *
+        (user.difficulty === "pro" ? 2 : user.difficulty === "degen" ? 1.5 : 1)
+    );
 
     if (pnlChange > 0) {
       const xpGain = calculateXP(pnlChange, user.difficulty);
@@ -181,7 +190,11 @@ app.post("/trade/buy", async (req: express.Request, res: express.Response) => {
         await User.findOneAndUpdate(
           { walletAddress: data.userId },
           {
-            $inc: { totalPoints: pointsEarned, totalTrades: 1, totalVolume: positionSize },
+            $inc: {
+              totalPoints: pointsEarned,
+              totalTrades: 1,
+              totalVolume: positionSize,
+            },
             $set: { lastActive: new Date() },
           },
           { upsert: true, new: true }
@@ -241,13 +254,14 @@ app.post("/trade/sell", async (req: express.Request, res: express.Response) => {
       } as TradeResponse);
     }
 
-    const tokensToSell = data.amount !== undefined
-      ? data.amount
-      : user.difficulty === "noob"
-      ? user.portfolio.balanceToken * 0.5
-      : user.difficulty === "degen"
-      ? user.portfolio.balanceToken * 0.5
-      : user.portfolio.balanceToken * 0.5;
+    const tokensToSell =
+      data.amount !== undefined
+        ? data.amount
+        : user.difficulty === "noob"
+        ? user.portfolio.balanceToken * 0.5
+        : user.difficulty === "degen"
+        ? user.portfolio.balanceToken * 0.5
+        : user.portfolio.balanceToken * 0.5;
 
     const newPortfolio = sell(
       user.portfolio,
@@ -259,7 +273,10 @@ app.post("/trade/sell", async (req: express.Request, res: express.Response) => {
     const usdValue = tokensToSell * currentPrice;
 
     // Calculate points
-    const pointsEarned = Math.floor(usdValue * (user.difficulty === "pro" ? 2 : user.difficulty === "degen" ? 1.5 : 1));
+    const pointsEarned = Math.floor(
+      usdValue *
+        (user.difficulty === "pro" ? 2 : user.difficulty === "degen" ? 1.5 : 1)
+    );
     // Bonus points for profitable trades
     const profitBonus = pnlChange > 0 ? Math.floor(pnlChange * 0.1) : 0;
     const totalPoints = pointsEarned + profitBonus;
@@ -303,7 +320,11 @@ app.post("/trade/sell", async (req: express.Request, res: express.Response) => {
         await User.findOneAndUpdate(
           { walletAddress: data.userId },
           {
-            $inc: { totalPoints: totalPoints, totalTrades: 1, totalVolume: usdValue },
+            $inc: {
+              totalPoints: totalPoints,
+              totalTrades: 1,
+              totalVolume: usdValue,
+            },
             $set: { lastActive: new Date() },
           },
           { upsert: true, new: true }
@@ -561,20 +582,26 @@ function broadcastDeviceSignal(userId: string, signal: DeviceSignal): void {
 }
 
 // Check token balance endpoint
-app.get("/tokens/balance", async (req: express.Request, res: express.Response) => {
-  try {
-    const address = req.query.address as string;
-    if (!address) {
-      return res.status(400).json({ error: "Address required" });
-    }
+app.get(
+  "/tokens/balance",
+  async (req: express.Request, res: express.Response) => {
+    try {
+      const address = req.query.address as string;
+      if (!address) {
+        return res.status(400).json({ error: "Address required" });
+      }
 
-    const balance = await getTokenBalance(address as Address);
-    res.json({ balance: balance?.balance || "0", hasTokens: parseFloat(balance?.balance || "0") > 0 });
-  } catch (error) {
-    console.error("Error checking balance:", error);
-    res.status(500).json({ error: "Failed to check balance" });
+      const balance = await getTokenBalance(address as Address);
+      res.json({
+        balance: balance?.balance || "0",
+        hasTokens: parseFloat(balance?.balance || "0") > 0,
+      });
+    } catch (error) {
+      console.error("Error checking balance:", error);
+      res.status(500).json({ error: "Failed to check balance" });
+    }
   }
-});
+);
 
 // Get user points
 app.get("/user/points", async (req: express.Request, res: express.Response) => {
@@ -648,10 +675,11 @@ app.get("/leaderboard", async (req: express.Request, res: express.Response) => {
 // Start price feed (for chart display without session)
 app.post("/price-feed/start", (req: express.Request, res: express.Response) => {
   const userId = req.body.userId || "public";
-  
+
   // Generate historical prices
   const historicalPrices = generateHistoricalPrices(1.0, 24, 1);
-  const lastHistoricalPrice = historicalPrices[historicalPrices.length - 1]?.price || 1.0;
+  const lastHistoricalPrice =
+    historicalPrices[historicalPrices.length - 1]?.price || 1.0;
 
   // Start a public price simulator
   const existingSimulator = priceSimulators.get(userId);
@@ -679,32 +707,35 @@ app.post("/price-feed/start", (req: express.Request, res: express.Response) => {
     broadcastPriceUpdate(userId, tick);
   });
 
-  res.json({ 
-    success: true, 
+  res.json({
+    success: true,
     initialPriceHistory: historicalPrices,
     currentPrice: lastHistoricalPrice,
   });
 });
 
 // Check token balance endpoint
-app.get("/tokens/balance", async (req: express.Request, res: express.Response) => {
-  try {
-    const address = req.query.address as string;
-    if (!address) {
-      return res.status(400).json({ error: "address required" });
-    }
+app.get(
+  "/tokens/balance",
+  async (req: express.Request, res: express.Response) => {
+    try {
+      const address = req.query.address as string;
+      if (!address) {
+        return res.status(400).json({ error: "address required" });
+      }
 
-    const balance = await getTokenBalance(address as Address);
-    res.json({
-      hasTokens: balance ? parseFloat(balance.balance) > 0 : false,
-      balance: balance?.balance || "0",
-      address: balance?.address || null,
-    });
-  } catch (error) {
-    console.error("Error checking token balance:", error);
-    res.status(500).json({ error: "Failed to check token balance" });
+      const balance = await getTokenBalance(address as Address);
+      res.json({
+        hasTokens: balance ? parseFloat(balance.balance) > 0 : false,
+        balance: balance?.balance || "0",
+        address: balance?.address || null,
+      });
+    } catch (error) {
+      console.error("Error checking token balance:", error);
+      res.status(500).json({ error: "Failed to check token balance" });
+    }
   }
-});
+);
 
 server.listen(PORT, () => {
   console.log(`🚀 Backend server running on http://localhost:${PORT}`);

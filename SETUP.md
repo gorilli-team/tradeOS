@@ -6,13 +6,22 @@ This project uses ERC-4337 smart accounts and airdrops test tokens when users st
 
 ### Backend (`apps/backend/.env`)
 
+Create a `.env` file in `apps/backend/` with the following:
+
 ```bash
+# MongoDB Configuration
+# Option 1: Local MongoDB (default)
+MONGODB_URI=mongodb://localhost:27017/tradeOS
+
+# Option 2: MongoDB Atlas (cloud - recommended)
+# MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/tradeOS?retryWrites=true&w=majority
+
 # Alchemy RPC URL (required for smart accounts)
 # Get your API key from https://dashboard.alchemy.com/
 ALCHEMY_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_API_KEY
 
 # Or use a generic RPC URL
-RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_API_KEY
+# RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_API_KEY
 
 # Private key for airdropping tokens (must have Sepolia ETH)
 # This should be a funded account on Sepolia testnet
@@ -20,7 +29,10 @@ PRIVATE_KEY=0x...
 
 # Optional: Deployed test token address (if you deploy your own ERC20 token)
 # If not set, the system will airdrop native ETH instead
-TEST_TOKEN_ADDRESS=0x...
+# TEST_TOKEN_ADDRESS=0x...
+
+# Server Configuration
+PORT=3001
 ```
 
 ### Frontend (`apps/frontend/.env.local`)
@@ -36,7 +48,33 @@ NEXT_PUBLIC_API_URL=http://localhost:3001
 
 ## Setup Steps
 
-### 1. Get Alchemy API Key
+### 1. Set Up MongoDB
+
+**Option A: Local MongoDB**
+```bash
+# Install MongoDB (macOS)
+brew tap mongodb/brew
+brew install mongodb-community
+brew services start mongodb-community
+
+# Or use Docker
+docker run -d -p 27017:27017 --name mongodb mongo:latest
+```
+
+**Option B: MongoDB Atlas (Cloud - Recommended)**
+1. Go to [MongoDB Atlas](https://www.mongodb.com/cloud/atlas)
+2. Create a free cluster
+3. Get your connection string
+4. Add it to `.env` as `MONGODB_URI`
+
+**Create `.env` file:**
+```bash
+cd apps/backend
+cp .env.example .env  # If .env.example exists, or create manually
+# Edit .env and add your MONGODB_URI
+```
+
+### 2. Get Alchemy API Key
 
 1. Go to [Alchemy Dashboard](https://dashboard.alchemy.com/)
 2. Create a new app or use an existing one
@@ -96,4 +134,25 @@ If you want to use a custom ERC20 token instead of native ETH:
 - Ensure Alchemy API key is valid
 - Check that you're using Sepolia network
 - Verify the account abstraction contracts are deployed on Sepolia
+
+### MongoDB connection fails
+- **Local MongoDB**: Make sure MongoDB is running
+  ```bash
+  # Check if running
+  brew services list | grep mongodb
+  
+  # Start if not running
+  brew services start mongodb-community
+  ```
+- **MongoDB Atlas**: Verify your connection string is correct
+  - Check username/password are URL-encoded
+  - Ensure your IP is whitelisted in Atlas
+  - Verify network access is enabled
+- **Environment variable**: Make sure `.env` file exists in `apps/backend/`
+  - The file should be named exactly `.env` (not `.env.example`)
+  - Restart the backend server after creating/editing `.env`
+- **Connection string format**:
+  - Local: `mongodb://localhost:27017/tradeOS`
+  - Atlas: `mongodb+srv://username:password@cluster.mongodb.net/tradeOS?retryWrites=true&w=majority`
+- **Note**: The app will continue to work without MongoDB, but trades won't be saved to the database
 
