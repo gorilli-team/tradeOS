@@ -57,7 +57,8 @@ export default function Home() {
         }
 
         // Connect to public price feed WebSocket
-        const ws = new WebSocket(`ws://localhost:3001`);
+        const wsUrl = API_URL.replace(/^http/, "ws");
+        const ws = new WebSocket(`${wsUrl}`);
         wsRef.current = ws;
 
         ws.onopen = () => {

@@ -80,6 +80,8 @@ export default function TradingViewChart({
     };
   }, [height]);
 
+  const lastDataLengthRef = useRef<number>(0);
+
   useEffect(() => {
     if (!seriesRef.current || !data.length) return;
 
@@ -91,7 +93,22 @@ export default function TradingViewChart({
     }));
 
     try {
-      seriesRef.current.setData(chartData);
+      // If we have new data points (data length increased), use update for incremental updates
+      if (
+        data.length > lastDataLengthRef.current &&
+        lastDataLengthRef.current > 0
+      ) {
+        // Only update with new data points
+        const newPoints = chartData.slice(lastDataLengthRef.current);
+        newPoints.forEach((point) => {
+          seriesRef.current?.update(point);
+        });
+      } else {
+        // Initial load or full refresh - set all data
+        seriesRef.current.setData(chartData);
+      }
+
+      lastDataLengthRef.current = data.length;
 
       // Auto-scroll to the end
       if (chartRef.current) {
