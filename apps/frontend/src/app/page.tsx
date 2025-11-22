@@ -15,6 +15,7 @@ import {
   generateAISignal,
 } from "../utils/indicators";
 import TradingViewChart from "../components/TradingViewChart";
+import Header from "../components/Header";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
@@ -32,10 +33,118 @@ export default function Home() {
   );
   const [airdropTxHash, setAirdropTxHash] = useState<string | null>(null);
   const [buyTimestamps, setBuyTimestamps] = useState<number[]>([]);
+  const [hasTokens, setHasTokens] = useState<boolean>(false);
+  const [userPoints, setUserPoints] = useState<number>(0);
+  const [userRank, setUserRank] = useState<number | undefined>(undefined);
   const wsRef = useRef<WebSocket | null>(null);
 
   // Get wallet address from Privy
   const walletAddress = wallets[0]?.address || null;
+
+  // Start price feed immediately on mount
+  useEffect(() => {
+    const startPriceFeed = async () => {
+      try {
+        const response = await fetch(`${API_URL}/price-feed/start`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: "public" }),
+        });
+        const result = await response.json();
+        
+        if (result.initialPriceHistory) {
+          setPriceHistory(result.initialPriceHistory);
+        }
+
+        // Connect to public price feed WebSocket
+        const ws = new WebSocket(`ws://localhost:3001`);
+        wsRef.current = ws;
+
+        ws.onopen = () => {
+          setIsConnected(true);
+          ws.send(JSON.stringify({ type: "subscribe", userId: "public" }));
+        };
+
+        ws.onmessage = (event) => {
+          const message = JSON.parse(event.data);
+          if (message.type === "price") {
+            const tick: PriceTick = message.data;
+            setPriceHistory((prev) => {
+              const newHistory = [...prev, tick];
+              return newHistory.slice(-2000);
+            });
+          }
+        };
+
+        ws.onerror = () => setIsConnected(false);
+        ws.onclose = () => setIsConnected(false);
+      } catch (error) {
+        console.error("Error starting price feed:", error);
+      }
+    };
+
+    startPriceFeed();
+  }, []);
+
+  // Check token balance when wallet is connected
+  useEffect(() => {
+    const checkTokenBalance = async () => {
+      if (!walletAddress || !smartAccountAddress) {
+        setHasTokens(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `${API_URL}/tokens/balance?address=${smartAccountAddress}`
+        );
+        const result = await response.json();
+        setHasTokens(result.hasTokens || false);
+      } catch (error) {
+        console.error("Error checking token balance:", error);
+        setHasTokens(false);
+      }
+    };
+
+    checkTokenBalance();
+    // Check every 10 seconds
+    const interval = setInterval(checkTokenBalance, 10000);
+    return () => clearInterval(interval);
+  }, [walletAddress, smartAccountAddress]);
+
+  // Fetch user points and rank
+  useEffect(() => {
+    const fetchUserStats = async () => {
+      if (!walletAddress) return;
+
+      try {
+        const [pointsRes, leaderboardRes] = await Promise.all([
+          fetch(`${API_URL}/user/points?walletAddress=${walletAddress}`),
+          fetch(`${API_URL}/leaderboard?limit=100`),
+        ]);
+
+        const pointsData = await pointsRes.json();
+        const leaderboardData = await leaderboardRes.json();
+
+        setUserPoints(pointsData.points || 0);
+
+        // Find user rank
+        const rank = leaderboardData.leaderboard?.findIndex(
+          (entry: any) => entry.walletAddress === walletAddress
+        );
+        if (rank !== undefined && rank !== -1) {
+          setUserRank(rank + 1);
+        }
+      } catch (error) {
+        console.error("Error fetching user stats:", error);
+      }
+    };
+
+    fetchUserStats();
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchUserStats, 30000);
+    return () => clearInterval(interval);
+  }, [walletAddress]);
 
   const startSession = async () => {
     if (!walletAddress) {
@@ -226,37 +335,13 @@ export default function Home() {
   );
 
   return (
-    <main className="min-h-screen p-8 bg-[#050812] text-white">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-4xl font-bold mb-8 text-center text-white">
-          tradeOS
-        </h1>
-
-        {/* Wallet Connection */}
-        <div className="mb-6 text-center">
-          {!ready ? (
-            <div className="text-gray-400">Loading...</div>
-          ) : !authenticated ? (
-            <button
-              onClick={login}
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg"
-            >
-              Connect Wallet
-            </button>
-          ) : (
+    <main className="min-h-screen bg-[#050812] text-white">
+      <Header userPoints={userPoints} userRank={userRank} />
+      <div className="max-w-7xl mx-auto p-8">
+        {/* Session Start Button - Only show when wallet connected but session not started */}
+        {authenticated && !isSessionStarted && (
+          <div className="mb-6 text-center">
             <div className="space-y-2">
-              <div className="flex items-center justify-center gap-4">
-                <div className="text-sm text-gray-400">
-                  Wallet: {walletAddress?.slice(0, 6)}...
-                  {walletAddress?.slice(-4)}
-                </div>
-                <button
-                  onClick={logout}
-                  className="px-3 py-1 text-xs bg-gray-600 hover:bg-gray-700 text-white rounded"
-                >
-                  Disconnect
-                </button>
-              </div>
               {smartAccountAddress && (
                 <div className="text-xs text-gray-500">
                   Smart Account: {smartAccountAddress.slice(0, 6)}...
@@ -275,17 +360,20 @@ export default function Home() {
                   </a>
                 </div>
               )}
-              {!isSessionStarted && (
-                <button
-                  onClick={startSession}
-                  className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg"
-                >
-                  Start Simulation
-                </button>
+              {!hasTokens && (
+                <div className="text-xs text-yellow-400 bg-yellow-400/10 border border-yellow-400/30 rounded p-2 inline-block">
+                  ⚠️ No tokens detected. Start a session to receive test tokens.
+                </div>
               )}
+              <button
+                onClick={startSession}
+                className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-colors"
+              >
+                Start Trading Session
+              </button>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Connection Status */}
         {isSessionStarted && (
@@ -318,15 +406,8 @@ export default function Home() {
           </div>
         )}
 
-        {!isSessionStarted ? (
-          <div className="text-center py-12">
-            <p className="text-xl text-gray-400">
-              {walletAddress
-                ? "Click 'Start Simulation' to begin trading"
-                : "Connect your wallet to start trading"}
-            </p>
-          </div>
-        ) : (
+        {/* Always show chart - trading requires tokens */}
+        {priceHistory.length > 0 ? (
           <div className="space-y-6">
             {/* Main Trading Area: Chart on Left, Buy/Sell on Right */}
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -337,11 +418,9 @@ export default function Home() {
                     <h2 className="text-xl font-semibold text-white mb-1">
                       Price Chart
                     </h2>
-                    {gameState && (
-                      <p className="text-3xl font-bold text-white">
-                        ${gameState.currentPrice.toFixed(4)}
-                      </p>
-                    )}
+                    <p className="text-3xl font-bold text-white">
+                      ${prices.length > 0 ? prices[prices.length - 1].toFixed(4) : "0.0000"}
+                    </p>
                   </div>
                   <div className="text-right">
                     {gameState && (
@@ -409,15 +488,25 @@ export default function Home() {
                   <div className="space-y-3">
                     <button
                       onClick={() => handleTrade("buy")}
-                      className="w-full bg-green-500/20 hover:bg-green-500/30 text-green-400 font-bold py-4 px-4 rounded border border-green-500/30 transition-colors text-lg"
+                      disabled={!hasTokens || !isSessionStarted}
+                      className={`w-full font-bold py-4 px-4 rounded border transition-colors text-lg ${
+                        hasTokens && isSessionStarted
+                          ? "bg-green-500/20 hover:bg-green-500/30 text-green-400 border-green-500/30"
+                          : "bg-gray-500/20 text-gray-500 border-gray-500/30 cursor-not-allowed"
+                      }`}
                     >
-                      BUY
+                      {!hasTokens ? "NO TOKENS" : "BUY"}
                     </button>
                     <button
                       onClick={() => handleTrade("sell")}
-                      className="w-full bg-red-500/20 hover:bg-red-500/30 text-red-400 font-bold py-4 px-4 rounded border border-red-500/30 transition-colors text-lg"
+                      disabled={!hasTokens || !isSessionStarted}
+                      className={`w-full font-bold py-4 px-4 rounded border transition-colors text-lg ${
+                        hasTokens && isSessionStarted
+                          ? "bg-red-500/20 hover:bg-red-500/30 text-red-400 border-red-500/30"
+                          : "bg-gray-500/20 text-gray-500 border-gray-500/30 cursor-not-allowed"
+                      }`}
                     >
-                      SELL
+                      {!hasTokens ? "NO TOKENS" : "SELL"}
                     </button>
                     <button
                       onClick={() => handleTrade("panic")}
@@ -600,6 +689,10 @@ export default function Home() {
                 </div>
               </div>
             </div>
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <p className="text-xl text-gray-400">Loading price data...</p>
           </div>
         )}
       </div>
