@@ -32,6 +32,7 @@ import { generateHistoricalPrices } from "./utils/historicalPrices";
 import connectDB from "./db/connection";
 import Trade from "./models/Trade";
 import User from "./models/User";
+import AIAgent from "./models/AIAgent";
 import { getTokenBalance } from "./services/token";
 import mongoose from "mongoose";
 
@@ -173,6 +174,11 @@ app.post("/trade/buy", async (req: express.Request, res: express.Response) => {
     // Save trade to MongoDB (fail gracefully if not connected)
     try {
       if (mongoose.connection.readyState === 1) {
+        // Check if this is an AI agent
+        const isAI = await AIAgent.findOne({ walletAddress: data.userId })
+          .then((agent) => !!agent)
+          .catch(() => false);
+
         const trade = new Trade({
           userId: data.userId,
           walletAddress: data.userId,
@@ -182,7 +188,7 @@ app.post("/trade/buy", async (req: express.Request, res: express.Response) => {
           usdValue: positionSize,
           difficulty: user.difficulty,
           pointsEarned: pointsEarned,
-          isAI: false,
+          isAI: isAI,
         });
         await trade.save();
 
@@ -199,6 +205,21 @@ app.post("/trade/buy", async (req: express.Request, res: express.Response) => {
           },
           { upsert: true, new: true }
         );
+
+        // Also update AI agent stats if this is an AI agent
+        await AIAgent.findOneAndUpdate(
+          { walletAddress: data.userId },
+          {
+            $inc: {
+              totalPoints: pointsEarned,
+              totalTrades: 1,
+              totalVolume: positionSize,
+            },
+            $set: { lastActive: new Date(), isActive: true },
+          }
+        ).catch(() => {
+          // Not an AI agent, that's okay
+        });
       } else {
         console.warn("⚠️  MongoDB not connected, trade not saved to database");
       }
@@ -302,6 +323,11 @@ app.post("/trade/sell", async (req: express.Request, res: express.Response) => {
     // Save trade to MongoDB (fail gracefully if not connected)
     try {
       if (mongoose.connection.readyState === 1) {
+        // Check if this is an AI agent
+        const isAI = await AIAgent.findOne({ walletAddress: data.userId })
+          .then((agent) => !!agent)
+          .catch(() => false);
+
         const trade = new Trade({
           userId: data.userId,
           walletAddress: data.userId,
@@ -312,7 +338,7 @@ app.post("/trade/sell", async (req: express.Request, res: express.Response) => {
           usdValue: usdValue,
           difficulty: user.difficulty,
           pointsEarned: totalPoints,
-          isAI: false,
+          isAI: isAI,
         });
         await trade.save();
 
@@ -329,6 +355,21 @@ app.post("/trade/sell", async (req: express.Request, res: express.Response) => {
           },
           { upsert: true, new: true }
         );
+
+        // Also update AI agent stats if this is an AI agent
+        await AIAgent.findOneAndUpdate(
+          { walletAddress: data.userId },
+          {
+            $inc: {
+              totalPoints: totalPoints,
+              totalTrades: 1,
+              totalVolume: usdValue,
+            },
+            $set: { lastActive: new Date(), isActive: true },
+          }
+        ).catch(() => {
+          // Not an AI agent, that's okay
+        });
       } else {
         console.warn("⚠️  MongoDB not connected, trade not saved to database");
       }
@@ -635,7 +676,123 @@ app.get("/user/points", async (req: express.Request, res: express.Response) => {
   }
 });
 
-// Get leaderboard
+// Register AI Agent
+app.post(
+  "/ai-agent/register",
+  async (req: express.Request, res: express.Response) => {
+    try {
+      const {
+        name,
+        ownerAddress,
+        description,
+        strategy,
+        walletAddress,
+        agentUrl,
+      } = req.body;
+
+      if (!name || !ownerAddress || !walletAddress) {
+        return res.status(400).json({
+          error: "Missing required fields: name, ownerAddress, walletAddress",
+        });
+      }
+
+      if (mongoose.connection.readyState !== 1) {
+        return res.status(503).json({ error: "Database not connected" });
+      }
+
+      // Validate agent URL if provided
+      if (agentUrl) {
+        try {
+          new URL(agentUrl);
+        } catch {
+          return res.status(400).json({
+            error: "Invalid agent URL format",
+          });
+        }
+      }
+
+      // Generate unique agent ID
+      const agentId = `agent_${Date.now()}_${Math.random()
+        .toString(36)
+        .substring(7)}`;
+
+      // Check if wallet address is already registered
+      const existingAgent = await AIAgent.findOne({ walletAddress });
+      if (existingAgent) {
+        return res.status(400).json({
+          error: "Wallet address already registered as an AI agent",
+        });
+      }
+
+      // Create AI agent
+      const agent = new AIAgent({
+        agentId,
+        name,
+        ownerAddress,
+        description,
+        strategy,
+        walletAddress,
+        agentUrl: agentUrl || undefined,
+        isActive: false,
+      });
+
+      await agent.save();
+
+      // Also create a User entry for leaderboard compatibility
+      const user = new User({
+        walletAddress,
+        isAI: true,
+        totalPoints: 0,
+        totalTrades: 0,
+        totalVolume: 0,
+      });
+      await user.save().catch(() => {
+        // User might already exist, that's okay
+      });
+
+      res.json({
+        success: true,
+        agent: {
+          agentId: agent.agentId,
+          name: agent.name,
+          walletAddress: agent.walletAddress,
+          agentUrl: agent.agentUrl,
+        },
+      });
+    } catch (error: any) {
+      console.error("Error registering AI agent:", error);
+      res
+        .status(500)
+        .json({ error: error.message || "Failed to register agent" });
+    }
+  }
+);
+
+// Get AI agents list
+app.get(
+  "/ai-agent/list",
+  async (req: express.Request, res: express.Response) => {
+    try {
+      if (mongoose.connection.readyState !== 1) {
+        return res.json({ agents: [] });
+      }
+
+      const agents = await AIAgent.find({})
+        .select(
+          "agentId name ownerAddress description strategy walletAddress isActive totalPoints totalTrades"
+        )
+        .sort({ totalPoints: -1 })
+        .lean();
+
+      res.json({ agents });
+    } catch (error) {
+      console.error("Error getting AI agents:", error);
+      res.json({ agents: [] });
+    }
+  }
+);
+
+// Get leaderboard (updated to include AI agents with names)
 app.get("/leaderboard", async (req: express.Request, res: express.Response) => {
   try {
     const limit = parseInt(req.query.limit as string) || 100;
@@ -650,15 +807,31 @@ app.get("/leaderboard", async (req: express.Request, res: express.Response) => {
       query.isAI = false;
     }
 
-    const leaderboard = await User.find(query)
+    // Get all users (humans and AI)
+    const users = await User.find(query)
       .sort({ totalPoints: -1 })
       .limit(limit)
       .select("walletAddress totalPoints totalTrades totalVolume isAI")
       .lean();
 
-    const ranked = leaderboard.map((user, index) => ({
+    // Get AI agent names for AI users
+    const aiWalletAddresses = users
+      .filter((u) => u.isAI)
+      .map((u) => u.walletAddress);
+    const agents = await AIAgent.find({
+      walletAddress: { $in: aiWalletAddresses },
+    })
+      .select("walletAddress name")
+      .lean();
+
+    const agentMap = new Map(agents.map((a) => [a.walletAddress, a.name]));
+
+    const ranked = users.map((user, index) => ({
       rank: index + 1,
       walletAddress: user.walletAddress,
+      name: user.isAI
+        ? agentMap.get(user.walletAddress) || "AI Agent"
+        : undefined,
       points: user.totalPoints,
       trades: user.totalTrades,
       volume: user.totalVolume,

@@ -45,9 +45,21 @@ export default function Header({
         <div className="flex items-center justify-between">
           {/* Logo and Title */}
           <div className="flex items-center gap-4">
-            <h1 className="text-2xl font-bold text-white">tradeOS</h1>
+            <a
+              href="/"
+              className="text-2xl font-bold text-white hover:text-green-400 transition-colors"
+            >
+              tradeOS
+            </a>
             <div className="h-6 w-px bg-[#1a1f3a]"></div>
             <div className="text-sm text-gray-400">Trading Simulator</div>
+            <div className="h-6 w-px bg-[#1a1f3a]"></div>
+            <a
+              href="/agents"
+              className="text-sm text-gray-400 hover:text-white transition-colors"
+            >
+              AI Agents
+            </a>
           </div>
 
           {/* Top Info */}
@@ -123,7 +135,9 @@ export default function Header({
                     <div className="text-xs text-gray-400">Wallet</div>
                     <div className="text-sm font-medium text-white">
                       {walletAddress
-                        ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`
+                        ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(
+                            -4
+                          )}`
                         : "Not connected"}
                     </div>
                   </div>
@@ -142,4 +156,3 @@ export default function Header({
     </header>
   );
 }
-
