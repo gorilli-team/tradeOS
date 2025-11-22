@@ -1,5 +1,5 @@
 import { PriceSimulator } from "./index";
-import { TrendSignal } from "@meme-trainer/types";
+import { TrendSignal } from "@tradeOS/types";
 
 describe("PriceSimulator", () => {
   let simulator: PriceSimulator;
