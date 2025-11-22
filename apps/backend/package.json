@@ -1,5 +1,5 @@
 {
-  "name": "tradeOS/backend",
+  "name": "@tradeOS/backend",
   "version": "1.0.0",
   "main": "./dist/index.js",
   "scripts": {

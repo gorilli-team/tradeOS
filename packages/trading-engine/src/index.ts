@@ -1,4 +1,4 @@
-import { Portfolio, DifficultyMode } from "tradeOS/types";
+import { Portfolio, DifficultyMode } from "@tradeOS/types";
 
 export function buy(
   portfolio: Portfolio,
