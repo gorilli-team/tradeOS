@@ -29,6 +29,10 @@ export default function Home() {
   const [difficulty, setDifficulty] = useState<DifficultyMode>("noob");
   const [isConnected, setIsConnected] = useState(false);
   const [isSessionStarted, setIsSessionStarted] = useState(false);
+  const [smartAccountAddress, setSmartAccountAddress] = useState<string | null>(
+    null
+  );
+  const [airdropTxHash, setAirdropTxHash] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
   // Get wallet address from Privy
@@ -41,12 +45,31 @@ export default function Home() {
     }
 
     try {
-      // Start session
-      await fetch(`${API_URL}/session/start`, {
+      // Start session with smart account creation and airdrop
+      const response = await fetch(`${API_URL}/session/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: walletAddress, difficulty }),
+        body: JSON.stringify({
+          userId: walletAddress,
+          difficulty,
+          ownerAddress: walletAddress, // Send owner address for smart account creation
+        }),
       });
+
+      const result = await response.json();
+
+      if (result.smartAccountAddress) {
+        setSmartAccountAddress(result.smartAccountAddress);
+      }
+
+      if (result.airdrop?.txHash) {
+        setAirdropTxHash(result.airdrop.txHash);
+        console.log(`Airdrop transaction: ${result.airdrop.txHash}`);
+      }
+
+      if (result.airdrop && !result.airdrop.success) {
+        console.warn("Airdrop failed:", result.airdrop.error);
+      }
 
       // Connect WebSocket
       const ws = new WebSocket(`ws://localhost:3001`);
@@ -148,6 +171,8 @@ export default function Home() {
       setPriceHistory([]);
       setDeviceSignal(null);
       setIsSessionStarted(false);
+      setSmartAccountAddress(null);
+      setAirdropTxHash(null);
       if (wsRef.current) {
         wsRef.current.close();
         wsRef.current = null;
@@ -210,6 +235,24 @@ export default function Home() {
                   Disconnect
                 </button>
               </div>
+              {smartAccountAddress && (
+                <div className="text-xs text-gray-500">
+                  Smart Account: {smartAccountAddress.slice(0, 6)}...
+                  {smartAccountAddress.slice(-4)}
+                </div>
+              )}
+              {airdropTxHash && (
+                <div className="text-xs">
+                  <a
+                    href={`https://sepolia.etherscan.io/tx/${airdropTxHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-400 hover:text-blue-300 underline"
+                  >
+                    View Airdrop TX
+                  </a>
+                </div>
+              )}
               {!isSessionStarted && (
                 <button
                   onClick={startSession}

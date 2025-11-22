@@ -22,6 +22,8 @@ import {
   TrendSignal,
 } from "@tradeOS/types";
 import { z } from "zod";
+import { createAccountAndAirdrop } from "./services/airdrop";
+import { type Address } from "viem";
 
 const app = express();
 const server = createServer(app);
@@ -35,6 +37,7 @@ const PORT = process.env.PORT || 3001;
 // In-memory state (in production, use a database)
 const users = new Map<string, UserState>();
 const priceSimulators = new Map<string, PriceSimulator>();
+const smartAccounts = new Map<string, Address>(); // userId -> smartAccountAddress
 
 // Initialize default user
 function createUser(
@@ -213,6 +216,7 @@ app.get("/state", (req: express.Request, res: express.Response) => {
 
   const user = users.get(userId) || createUser(userId);
   const simulator = priceSimulators.get(userId);
+  const smartAccountAddress = smartAccounts.get(userId);
 
   if (!simulator) {
     return res.status(400).json({ error: "Price simulator not started" });
@@ -228,12 +232,16 @@ app.get("/state", (req: express.Request, res: express.Response) => {
     unrealizedPnl,
   };
 
-  res.json(gameState);
+  res.json({
+    ...gameState,
+    smartAccountAddress,
+  });
 });
 
-app.post("/session/start", (req: express.Request, res: express.Response) => {
+app.post("/session/start", async (req: express.Request, res: express.Response) => {
   const userId = req.body.userId || "default";
   const difficulty = (req.body.difficulty || "noob") as DifficultyMode;
+  const ownerAddress = req.body.ownerAddress as Address | undefined;
 
   // Stop existing simulator if any
   const existingSimulator = priceSimulators.get(userId);
@@ -244,6 +252,39 @@ app.post("/session/start", (req: express.Request, res: express.Response) => {
   // Create or reset user
   const user = createUser(userId, difficulty);
   users.set(userId, user);
+
+  // Create smart account and airdrop tokens if owner address is provided
+  let smartAccountAddress: Address | undefined;
+  let airdropResult: { success: boolean; txHash?: string; error?: string } | undefined;
+
+  if (ownerAddress) {
+    try {
+      console.log(`Creating smart account for user ${userId} with owner ${ownerAddress}`);
+      const result = await createAccountAndAirdrop(ownerAddress, "1000");
+      
+      if (result.success && result.smartAccountAddress) {
+        smartAccountAddress = result.smartAccountAddress;
+        smartAccounts.set(userId, smartAccountAddress);
+        airdropResult = {
+          success: true,
+          txHash: result.txHash,
+        };
+        console.log(`Smart account created: ${smartAccountAddress}, Airdrop tx: ${result.txHash}`);
+      } else {
+        console.error(`Failed to create smart account: ${result.error}`);
+        airdropResult = {
+          success: false,
+          error: result.error,
+        };
+      }
+    } catch (error: any) {
+      console.error("Error creating smart account:", error);
+      airdropResult = {
+        success: false,
+        error: error?.message || "Unknown error",
+      };
+    }
+  }
 
   // Start price simulator
   const simulator = new PriceSimulator({
@@ -283,7 +324,13 @@ app.post("/session/start", (req: express.Request, res: express.Response) => {
     });
   });
 
-  res.json({ success: true, userId, difficulty });
+  res.json({ 
+    success: true, 
+    userId, 
+    difficulty,
+    smartAccountAddress,
+    airdrop: airdropResult,
+  });
 });
 
 app.post("/session/reset", (req: express.Request, res: express.Response) => {
