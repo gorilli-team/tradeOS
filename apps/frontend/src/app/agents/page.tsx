@@ -143,14 +143,22 @@ export default function AgentsPage() {
                 Create and manage your trading agents
               </p>
             </div>
-            {authenticated && (
-              <button
-                onClick={() => setShowCreateForm(!showCreateForm)}
-                className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-colors"
+            <div className="flex items-center gap-4">
+              <Link
+                href="/agents/api-docs"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
               >
-                {showCreateForm ? "Cancel" : "+ Create Agent"}
-              </button>
-            )}
+                API Docs
+              </Link>
+              {authenticated && (
+                <button
+                  onClick={() => setShowCreateForm(!showCreateForm)}
+                  className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-colors"
+                >
+                  {showCreateForm ? "Cancel" : "+ Create Agent"}
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Error message */}
