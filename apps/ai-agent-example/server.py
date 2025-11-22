@@ -233,6 +233,39 @@ class MomentumAgent:
             logger.error(f"❌ Error checking balance: {e}")
             return False
 
+    async def fetch_signals(self) -> Optional[Dict]:
+        """Fetch trading signals from API"""
+        try:
+            url = f"{API_URL}/data/signals"
+            response = requests.get(
+                url, params={"userId": self.wallet_address}, timeout=5
+            )
+
+            if response.status_code == 200:
+                return response.json()
+            return None
+        except Exception as e:
+            logger.error(f"❌ Error fetching signals: {e}")
+            return None
+
+    async def fetch_price_history(self, limit: int = 100) -> List[Dict]:
+        """Fetch price history from API"""
+        try:
+            url = f"{API_URL}/data/price/history"
+            response = requests.get(
+                url,
+                params={"userId": self.wallet_address, "limit": limit},
+                timeout=5,
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                return data.get("history", [])
+            return []
+        except Exception as e:
+            logger.error(f"❌ Error fetching price history: {e}")
+            return []
+
     async def connect_websocket(self):
         """Connect to WebSocket and handle messages"""
         ws_url = WS_URL.replace("http", "ws") if WS_URL.startswith("http") else WS_URL
@@ -264,6 +297,12 @@ class MomentumAgent:
                                 if price:
                                     self.price_history.append(price)
                                     self.stats["last_price"] = price
+
+                                    # Optionally fetch signals from API for more sophisticated decisions
+                                    # signals = await self.fetch_signals()
+                                    # if signals:
+                                    #     # Use API signals for trading decisions
+                                    #     pass
 
                                     # Make trading decision
                                     if self.has_tokens and self.session_started:
@@ -353,6 +392,9 @@ async def get_stats():
     if not agent:
         raise HTTPException(status_code=503, detail="Agent not initialized")
 
+    # Optionally fetch signals from tradeOS API
+    signals = await agent.fetch_signals() if agent else None
+
     return {
         "wallet_address": agent.wallet_address,
         "is_connected": agent.is_connected,
@@ -362,6 +404,7 @@ async def get_stats():
         "last_price": agent.stats["last_price"],
         "trades_executed": agent.stats["trades_executed"],
         "last_trade": agent.stats["last_trade"],
+        "signals": signals,  # Include signals from tradeOS API
     }
 
 

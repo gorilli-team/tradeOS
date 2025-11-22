@@ -29,6 +29,7 @@ import { z } from "zod";
 import { createAccountAndAirdrop } from "./services/airdrop";
 import { type Address } from "viem";
 import { generateHistoricalPrices } from "./utils/historicalPrices";
+import { generateTradingSignals } from "./utils/indicators";
 import connectDB from "./db/connection";
 import Trade from "./models/Trade";
 import User from "./models/User";
@@ -62,6 +63,8 @@ connectDB()
 const users = new Map<string, UserState>();
 const priceSimulators = new Map<string, PriceSimulator>();
 const smartAccounts = new Map<string, Address>(); // userId -> smartAccountAddress
+const priceHistory = new Map<string, PriceTick[]>(); // userId -> price history
+const buyTimestamps = new Map<string, number[]>(); // userId -> buy timestamps
 
 // Initialize default user
 function createUser(
@@ -500,6 +503,9 @@ app.post(
 
     priceSimulators.set(userId, simulator);
 
+    // Store initial historical prices
+    priceHistory.set(userId, [...historicalPrices]);
+
     // Send initial historical prices to all connected clients
     const userClients = clients.get(userId);
     if (userClients) {
@@ -597,6 +603,18 @@ wss.on("connection", (ws: any) => {
 });
 
 function broadcastPriceUpdate(userId: string, tick: PriceTick): void {
+  // Store price history
+  if (!priceHistory.has(userId)) {
+    priceHistory.set(userId, []);
+  }
+  const history = priceHistory.get(userId)!;
+  history.push(tick);
+  // Keep last 2000 ticks (for 24h+ of data)
+  if (history.length > 2000) {
+    history.shift();
+  }
+
+  // Broadcast to WebSocket clients
   const userClients = clients.get(userId);
   if (userClients) {
     const message = JSON.stringify({ type: "price", data: tick });
@@ -869,6 +887,9 @@ app.post("/price-feed/start", (req: express.Request, res: express.Response) => {
 
   priceSimulators.set(userId, simulator);
 
+  // Store initial historical prices for public feed
+  priceHistory.set(userId, [...historicalPrices]);
+
   simulator.start((price: number, trend: TrendSignal) => {
     const tick: PriceTick = {
       price,
@@ -909,6 +930,132 @@ app.get(
     }
   }
 );
+
+// ==================== Data Endpoints for AI Agents ====================
+
+// Get current price
+app.get(
+  "/data/price/current",
+  (req: express.Request, res: express.Response) => {
+    try {
+      const userId = (req.query.userId as string) || "public";
+      const simulator = priceSimulators.get(userId);
+
+      if (!simulator) {
+        return res
+          .status(404)
+          .json({ error: "Price simulator not found for this user" });
+      }
+
+      const currentPrice = simulator.getCurrentPrice();
+      const history = priceHistory.get(userId) || [];
+      const lastTick = history[history.length - 1];
+
+      res.json({
+        price: currentPrice,
+        timestamp: Date.now(),
+        trend: lastTick?.trend || "sideways",
+      });
+    } catch (error) {
+      console.error("Error getting current price:", error);
+      res.status(500).json({ error: "Failed to get current price" });
+    }
+  }
+);
+
+// Get price history
+app.get(
+  "/data/price/history",
+  (req: express.Request, res: express.Response) => {
+    try {
+      const userId = (req.query.userId as string) || "public";
+      const limit = parseInt(req.query.limit as string) || 1000;
+      const history = priceHistory.get(userId) || [];
+
+      // Return last N ticks
+      const recentHistory = history.slice(-limit);
+
+      res.json({
+        userId,
+        count: recentHistory.length,
+        history: recentHistory,
+      });
+    } catch (error) {
+      console.error("Error getting price history:", error);
+      res.status(500).json({ error: "Failed to get price history" });
+    }
+  }
+);
+
+// Get trading signals and indicators
+app.get("/data/signals", (req: express.Request, res: express.Response) => {
+  try {
+    const userId = (req.query.userId as string) || "public";
+    const history = priceHistory.get(userId) || [];
+    const timestamps = buyTimestamps.get(userId) || [];
+
+    if (history.length === 0) {
+      return res.json({
+        error: "No price data available",
+        message: "Start a trading session to begin receiving price data",
+      });
+    }
+
+    const signals = generateTradingSignals(history, timestamps);
+
+    res.json({
+      userId,
+      timestamp: Date.now(),
+      ...signals,
+    });
+  } catch (error) {
+    console.error("Error getting trading signals:", error);
+    res.status(500).json({ error: "Failed to get trading signals" });
+  }
+});
+
+// Get all indicators (comprehensive data endpoint)
+app.get("/data/indicators", (req: express.Request, res: express.Response) => {
+  try {
+    const userId = (req.query.userId as string) || "public";
+    const simulator = priceSimulators.get(userId);
+    const history = priceHistory.get(userId) || [];
+    const timestamps = buyTimestamps.get(userId) || [];
+
+    if (!simulator) {
+      return res
+        .status(404)
+        .json({ error: "Price simulator not found for this user" });
+    }
+
+    const currentPrice = simulator.getCurrentPrice();
+    const signals = generateTradingSignals(history, timestamps);
+
+    res.json({
+      userId,
+      timestamp: Date.now(),
+      currentPrice,
+      indicators: {
+        rsi: signals.rsi,
+        rsiSignal: signals.rsiSignal,
+        momentum: signals.momentum,
+        volatility: signals.volatility,
+        movingAverage: signals.movingAverage,
+        priceChange24h: signals.priceChange24h,
+        trend: signals.trend,
+        buyFrequency: signals.buyFrequency,
+      },
+      aiSignal: signals.aiSignal,
+      priceHistory: {
+        count: history.length,
+        latest: history.slice(-10), // Last 10 ticks
+      },
+    });
+  } catch (error) {
+    console.error("Error getting indicators:", error);
+    res.status(500).json({ error: "Failed to get indicators" });
+  }
+});
 
 server.listen(PORT, () => {
   console.log(`🚀 Backend server running on http://localhost:${PORT}`);

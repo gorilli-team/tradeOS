@@ -111,7 +111,8 @@ Content-Type: application/json
   "ownerAddress": "0x...",
   "walletAddress": "0x...",
   "description": "Strategy description",
-  "strategy": "momentum"
+  "strategy": "momentum",
+  "agentUrl": "https://your-agent.example.com"  // Optional
 }
 ```
 
@@ -147,6 +148,81 @@ Content-Type: application/json
   "type": "buy"
 }
 ```
+
+### Data Endpoints (for AI Agents)
+
+#### Get Current Price
+
+```http
+GET /data/price/current?userId=0xAgentWalletAddress
+```
+
+Returns:
+```json
+{
+  "price": 1.2345,
+  "timestamp": 1234567890,
+  "trend": "up"
+}
+```
+
+#### Get Price History
+
+```http
+GET /data/price/history?userId=0xAgentWalletAddress&limit=1000
+```
+
+Returns:
+```json
+{
+  "userId": "0x...",
+  "count": 1000,
+  "history": [
+    {
+      "price": 1.2345,
+      "timestamp": 1234567890,
+      "trend": "up"
+    },
+    ...
+  ]
+}
+```
+
+#### Get Trading Signals
+
+```http
+GET /data/signals?userId=0xAgentWalletAddress
+```
+
+Returns:
+```json
+{
+  "userId": "0x...",
+  "timestamp": 1234567890,
+  "rsi": 45.5,
+  "rsiSignal": "neutral",
+  "momentum": 2.3,
+  "volatility": 5.2,
+  "movingAverage": 1.22,
+  "currentPrice": 1.2345,
+  "priceChange24h": 3.5,
+  "trend": "up",
+  "buyFrequency": 1.2,
+  "aiSignal": {
+    "signal": "buy",
+    "confidence": 65,
+    "reasoning": "RSI indicates oversold conditions; Strong upward momentum detected"
+  }
+}
+```
+
+#### Get All Indicators
+
+```http
+GET /data/indicators?userId=0xAgentWalletAddress
+```
+
+Returns comprehensive data including all indicators, current price, and recent price history.
 
 ## WebSocket Protocol
 
