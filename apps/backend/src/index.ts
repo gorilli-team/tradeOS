@@ -2,6 +2,25 @@ import express from "express";
 import { WebSocketServer, WebSocket as WS } from "ws";
 import cors from "cors";
 import { createServer } from "http";
+import { PriceSimulator } from "@tradeOS/price-simulator";
+import {
+  buy,
+  sell,
+  panicExit,
+  getUnrealizedPnl,
+  validateTrade,
+} from "@tradeOS/trading-engine";
+import { calculateXP, calculateLevel } from "@tradeOS/utils";
+import {
+  UserState,
+  PriceTick,
+  TradeRequest,
+  TradeResponse,
+  GameState,
+  DeviceSignal,
+  DifficultyMode,
+  TrendSignal,
+} from "@tradeOS/types";
 import { z } from "zod";
 
 const app = express();
@@ -50,6 +69,292 @@ const TradeRequestSchema = z.object({
   type: z.enum(["buy", "sell", "panic"]),
   amount: z.number().optional(),
 });
+
+// REST Endpoints
+
+app.post("/trade/buy", (req: express.Request, res: express.Response) => {
+  try {
+    const data = TradeRequestSchema.parse(req.body);
+    const user = users.get(data.userId) || createUser(data.userId);
+
+    const simulator = priceSimulators.get(data.userId);
+    if (!simulator) {
+      return res.status(400).json({ error: "Price simulator not started" });
+    }
+
+    const currentPrice = simulator.getCurrentPrice();
+    const validation = validateTrade(
+      user.portfolio,
+      currentPrice,
+      user.difficulty,
+      "buy"
+    );
+
+    if (!validation.valid) {
+      return res.status(400).json({
+        success: false,
+        error: validation.reason,
+      } as TradeResponse);
+    }
+
+    const newPortfolio = buy(
+      user.portfolio,
+      currentPrice,
+      user.difficulty,
+      data.amount
+    );
+    const pnlChange = newPortfolio.realizedPnl - user.portfolio.realizedPnl;
+
+    if (pnlChange > 0) {
+      const xpGain = calculateXP(pnlChange, user.difficulty);
+      user.xp += xpGain;
+      user.level = calculateLevel(user.xp);
+    }
+
+    user.portfolio = newPortfolio;
+    users.set(data.userId, user);
+
+    // Broadcast device signal
+    broadcastDeviceSignal(data.userId, {
+      type: "led",
+      color: "green",
+    });
+
+    res.json({
+      success: true,
+      portfolio: newPortfolio,
+    } as TradeResponse);
+  } catch (error: unknown) {
+    if (error instanceof z.ZodError) {
+      return res
+        .status(400)
+        .json({ error: "Invalid request", details: error.errors });
+    }
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.post("/trade/sell", (req: express.Request, res: express.Response) => {
+  try {
+    const data = TradeRequestSchema.parse(req.body);
+    const user = users.get(data.userId) || createUser(data.userId);
+
+    const simulator = priceSimulators.get(data.userId);
+    if (!simulator) {
+      return res.status(400).json({ error: "Price simulator not started" });
+    }
+
+    const currentPrice = simulator.getCurrentPrice();
+    const validation = validateTrade(
+      user.portfolio,
+      currentPrice,
+      user.difficulty,
+      "sell"
+    );
+
+    if (!validation.valid) {
+      return res.status(400).json({
+        success: false,
+        error: validation.reason,
+      } as TradeResponse);
+    }
+
+    const newPortfolio = sell(
+      user.portfolio,
+      currentPrice,
+      user.difficulty,
+      data.amount
+    );
+    const pnlChange = newPortfolio.realizedPnl - user.portfolio.realizedPnl;
+
+    if (pnlChange > 0) {
+      const xpGain = calculateXP(pnlChange, user.difficulty);
+      user.xp += xpGain;
+      const oldLevel = user.level;
+      user.level = calculateLevel(user.xp);
+
+      if (user.level > oldLevel) {
+        broadcastDeviceSignal(data.userId, {
+          type: "notification",
+          message: `Level up! You're now level ${user.level}`,
+          level: user.level,
+        });
+      }
+    }
+
+    user.portfolio = newPortfolio;
+    users.set(data.userId, user);
+
+    // Broadcast device signal
+    broadcastDeviceSignal(data.userId, {
+      type: "led",
+      color: "red",
+    });
+
+    res.json({
+      success: true,
+      portfolio: newPortfolio,
+    } as TradeResponse);
+  } catch (error: unknown) {
+    if (error instanceof z.ZodError) {
+      return res
+        .status(400)
+        .json({ error: "Invalid request", details: error.errors });
+    }
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.get("/state", (req: express.Request, res: express.Response) => {
+  const userId = req.query.userId as string;
+  if (!userId) {
+    return res.status(400).json({ error: "userId required" });
+  }
+
+  const user = users.get(userId) || createUser(userId);
+  const simulator = priceSimulators.get(userId);
+
+  if (!simulator) {
+    return res.status(400).json({ error: "Price simulator not started" });
+  }
+
+  const currentPrice = simulator.getCurrentPrice();
+  const unrealizedPnl = getUnrealizedPnl(user.portfolio, currentPrice);
+
+  const gameState: GameState = {
+    user,
+    currentPrice,
+    priceHistory: [], // Could maintain history if needed
+    unrealizedPnl,
+  };
+
+  res.json(gameState);
+});
+
+app.post("/session/start", (req: express.Request, res: express.Response) => {
+  const userId = req.body.userId || "default";
+  const difficulty = (req.body.difficulty || "noob") as DifficultyMode;
+
+  // Stop existing simulator if any
+  const existingSimulator = priceSimulators.get(userId);
+  if (existingSimulator) {
+    existingSimulator.stop();
+  }
+
+  // Create or reset user
+  const user = createUser(userId, difficulty);
+  users.set(userId, user);
+
+  // Start price simulator
+  const simulator = new PriceSimulator({
+    initialPrice: 1.0,
+    volatility: 0.02,
+    difficulty,
+    tickInterval: 1000,
+  });
+
+  priceSimulators.set(userId, simulator);
+
+  simulator.start((price: number, trend: TrendSignal) => {
+    const tick: PriceTick = {
+      price,
+      timestamp: Date.now(),
+      trend,
+    };
+
+    // Broadcast price update to WebSocket clients
+    broadcastPriceUpdate(userId, tick);
+
+    // Broadcast device signal based on trend
+    const colorMap: Record<
+      TrendSignal,
+      "green" | "red" | "yellow" | "purple" | "orange"
+    > = {
+      up: "green",
+      down: "red",
+      sideways: "yellow",
+      whale: "purple",
+      rug: "orange",
+    };
+
+    broadcastDeviceSignal(userId, {
+      type: "led",
+      color: colorMap[trend],
+    });
+  });
+
+  res.json({ success: true, userId, difficulty });
+});
+
+app.post("/session/reset", (req: express.Request, res: express.Response) => {
+  const userId = req.body.userId || "default";
+
+  const simulator = priceSimulators.get(userId);
+  if (simulator) {
+    simulator.stop();
+    priceSimulators.delete(userId);
+  }
+
+  users.delete(userId);
+  res.json({ success: true });
+});
+
+// WebSocket handling
+const clients = new Map<string, Set<any>>();
+
+wss.on("connection", (ws: any) => {
+  console.log("WebSocket client connected");
+
+  ws.on("message", (message: Buffer) => {
+    try {
+      const data = JSON.parse(message.toString());
+      if (data.type === "subscribe" && data.userId) {
+        if (!clients.has(data.userId)) {
+          clients.set(data.userId, new Set());
+        }
+        clients.get(data.userId)!.add(ws);
+      }
+    } catch (error: unknown) {
+      console.error("Error parsing WebSocket message:", error);
+    }
+  });
+
+  ws.on("close", () => {
+    // Remove from all user subscriptions
+    for (const [userId, userClients] of clients.entries()) {
+      userClients.delete(ws);
+      if (userClients.size === 0) {
+        clients.delete(userId);
+      }
+    }
+  });
+});
+
+function broadcastPriceUpdate(userId: string, tick: PriceTick): void {
+  const userClients = clients.get(userId);
+  if (userClients) {
+    const message = JSON.stringify({ type: "price", data: tick });
+    userClients.forEach((client) => {
+      if (client.readyState === 1) {
+        // OPEN
+        client.send(message);
+      }
+    });
+  }
+}
+
+function broadcastDeviceSignal(userId: string, signal: DeviceSignal): void {
+  const userClients = clients.get(userId);
+  if (userClients) {
+    const message = JSON.stringify({ type: "device", data: signal });
+    userClients.forEach((client) => {
+      if (client.readyState === 1) {
+        // OPEN
+        client.send(message);
+      }
+    });
+  }
+}
 
 server.listen(PORT, () => {
   console.log(`🚀 Backend server running on http://localhost:${PORT}`);

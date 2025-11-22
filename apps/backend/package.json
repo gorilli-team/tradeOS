@@ -1,5 +1,5 @@
 {
-  "name": "@tradeOS/backend",
+  "name": "tradeOS/backend",
   "version": "1.0.0",
   "main": "./dist/index.js",
   "scripts": {
@@ -9,6 +9,10 @@
     "test": "jest"
   },
   "dependencies": {
+    "@tradeOS/price-simulator": "workspace:*",
+    "@tradeOS/trading-engine": "workspace:*",
+    "@tradeOS/types": "workspace:*",
+    "@tradeOS/utils": "workspace:*",
     "express": "^4.18.2",
     "ws": "^8.16.0",
     "zod": "^3.22.4",
