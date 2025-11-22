@@ -2,21 +2,19 @@
 
 import { useState, useEffect, useRef } from "react";
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
-import {
   GameState,
   PriceTick,
   DifficultyMode,
   DeviceSignal,
 } from "@tradeOS/types";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
+import {
+  calculateRSI,
+  getRSISignal,
+  calculateBuyFrequency,
+  generateAISignal,
+} from "../utils/indicators";
+import TradingViewChart from "../components/TradingViewChart";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
@@ -33,6 +31,7 @@ export default function Home() {
     null
   );
   const [airdropTxHash, setAirdropTxHash] = useState<string | null>(null);
+  const [buyTimestamps, setBuyTimestamps] = useState<number[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
 
   // Get wallet address from Privy
@@ -71,6 +70,14 @@ export default function Home() {
         console.warn("Airdrop failed:", result.airdrop.error);
       }
 
+      // Load initial price history if provided
+      if (
+        result.initialPriceHistory &&
+        Array.isArray(result.initialPriceHistory)
+      ) {
+        setPriceHistory(result.initialPriceHistory);
+      }
+
       // Connect WebSocket
       const ws = new WebSocket(`ws://localhost:3001`);
       wsRef.current = ws;
@@ -86,8 +93,8 @@ export default function Home() {
           const tick: PriceTick = message.data;
           setPriceHistory((prev) => {
             const newHistory = [...prev, tick];
-            // Keep last 100 ticks
-            return newHistory.slice(-100);
+            // Keep last 2000 ticks (for 24h+ of data)
+            return newHistory.slice(-2000);
           });
         } else if (message.type === "device") {
           setDeviceSignal(message.data);
@@ -150,6 +157,10 @@ export default function Home() {
       });
       const result = await response.json();
       if (result.success) {
+        // Track buy timestamps for frequency calculation
+        if (type === "buy") {
+          setBuyTimestamps((prev) => [...prev, Date.now()]);
+        }
         fetchState();
       } else {
         alert(result.error || "Trade failed");
@@ -200,15 +211,26 @@ export default function Home() {
     }
   };
 
-  const chartData = priceHistory.map((tick) => ({
-    time: new Date(tick.timestamp).toLocaleTimeString(),
-    price: tick.price,
-  }));
+  // Calculate indicators
+  const prices = priceHistory.map((t) => t.price);
+  const rsi = calculateRSI(prices);
+  const rsiSignal = getRSISignal(rsi);
+  const buyFrequency = calculateBuyFrequency(buyTimestamps);
+  const currentPrice =
+    gameState?.currentPrice || prices[prices.length - 1] || 0;
+  const aiSignal = generateAISignal(
+    priceHistory,
+    rsi,
+    buyFrequency,
+    currentPrice
+  );
 
   return (
-    <main className="min-h-screen p-8 bg-gradient-to-br from-gray-900 to-gray-800 text-white">
+    <main className="min-h-screen p-8 bg-[#050812] text-white">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-4xl font-bold mb-8 text-center">tradeOS</h1>
+        <h1 className="text-4xl font-bold mb-8 text-center text-white">
+          tradeOS
+        </h1>
 
         {/* Wallet Connection */}
         <div className="mb-6 text-center">
@@ -269,11 +291,13 @@ export default function Home() {
         {isSessionStarted && (
           <div className="mb-4 text-center">
             <span
-              className={`px-4 py-2 rounded ${
-                isConnected ? "bg-green-500" : "bg-red-500"
+              className={`px-4 py-2 rounded text-sm font-medium ${
+                isConnected
+                  ? "bg-green-500/20 text-green-400 border border-green-500/30"
+                  : "bg-red-500/20 text-red-400 border border-red-500/30"
               }`}
             >
-              {isConnected ? "Connected" : "Disconnected"}
+              {isConnected ? "● Connected" : "● Disconnected"}
             </span>
           </div>
         )}
@@ -303,124 +327,235 @@ export default function Home() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Price Chart */}
-            <div className="lg:col-span-2 bg-gray-800 rounded-lg p-6">
-              <h2 className="text-2xl font-semibold mb-4">Price Chart</h2>
-              <ResponsiveContainer width="100%" height={400}>
-                <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis dataKey="time" stroke="#9ca3af" />
-                  <YAxis stroke="#9ca3af" />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "#1f2937",
-                      border: "1px solid #374151",
-                    }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="price"
-                    stroke="#10b981"
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-              {gameState && (
-                <div className="mt-4 text-center">
-                  <p className="text-3xl font-bold">
-                    ${gameState.currentPrice.toFixed(4)}
-                  </p>
-                  <p className="text-sm text-gray-400 mt-2">
-                    Trend:{" "}
-                    {priceHistory[priceHistory.length - 1]?.trend || "N/A"}
-                  </p>
+          <div className="space-y-6">
+            {/* Main Trading Area: Chart on Left, Buy/Sell on Right */}
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              {/* TradingView Chart - Takes 3 columns */}
+              <div className="lg:col-span-3 bg-[#0a0e27] border border-[#1a1f3a] rounded-lg p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h2 className="text-xl font-semibold text-white mb-1">
+                      Price Chart
+                    </h2>
+                    {gameState && (
+                      <p className="text-3xl font-bold text-white">
+                        ${gameState.currentPrice.toFixed(4)}
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    {gameState && (
+                      <div className="text-sm">
+                        <p
+                          className={`font-semibold ${
+                            gameState.unrealizedPnl >= 0
+                              ? "text-green-400"
+                              : "text-red-400"
+                          }`}
+                        >
+                          {gameState.unrealizedPnl >= 0 ? "+" : ""}$
+                          {gameState.unrealizedPnl.toFixed(2)}
+                        </p>
+                        <p className="text-gray-400 text-xs">Unrealized PnL</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              )}
-            </div>
-
-            {/* Portfolio & Controls */}
-            <div className="space-y-6">
-              {/* Trading Controls - Moved to top */}
-              <div className="bg-gray-800 rounded-lg p-6">
-                <h2 className="text-2xl font-semibold mb-4">Trading</h2>
-                <div className="space-y-3">
-                  <button
-                    onClick={() => handleTrade("buy")}
-                    className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded"
-                  >
-                    BUY
-                  </button>
-                  <button
-                    onClick={() => handleTrade("sell")}
-                    className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded"
-                  >
-                    SELL
-                  </button>
-                  <button
-                    onClick={() => handleTrade("panic")}
-                    className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-4 rounded"
-                  >
-                    PANIC EXIT
-                  </button>
-                </div>
-              </div>
-
-              {/* Portfolio */}
-              <div className="bg-gray-800 rounded-lg p-6">
-                <h2 className="text-2xl font-semibold mb-4">Portfolio</h2>
-                {gameState ? (
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-gray-400">USD Balance</p>
-                      <p className="text-2xl font-bold">
-                        ${gameState.user.portfolio.balanceUSD.toFixed(2)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400">Token Balance</p>
-                      <p className="text-2xl font-bold">
-                        {gameState.user.portfolio.balanceToken.toFixed(4)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400">Realized PnL</p>
-                      <p
-                        className={`text-2xl font-bold ${
-                          gameState.user.portfolio.realizedPnl >= 0
-                            ? "text-green-400"
-                            : "text-red-400"
-                        }`}
-                      >
-                        ${gameState.user.portfolio.realizedPnl.toFixed(2)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400">Unrealized PnL</p>
-                      <p
-                        className={`text-2xl font-bold ${
-                          gameState.unrealizedPnl >= 0
-                            ? "text-green-400"
-                            : "text-red-400"
-                        }`}
-                      >
-                        ${gameState.unrealizedPnl.toFixed(2)}
-                      </p>
+                {priceHistory.length > 0 && (
+                  <TradingViewChart data={priceHistory} height={500} />
+                )}
+                {gameState && (
+                  <div className="mt-4 flex items-center justify-between text-sm">
+                    <div className="flex gap-4">
+                      <div>
+                        <span className="text-gray-400">Trend: </span>
+                        <span className="text-white font-semibold">
+                          {priceHistory[
+                            priceHistory.length - 1
+                          ]?.trend?.toUpperCase() || "N/A"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-gray-400">24h Change: </span>
+                        <span
+                          className={`font-semibold ${
+                            prices.length > 1 &&
+                            prices[prices.length - 1] > prices[0]
+                              ? "text-green-400"
+                              : "text-red-400"
+                          }`}
+                        >
+                          {prices.length > 1
+                            ? (
+                                ((prices[prices.length - 1] - prices[0]) /
+                                  prices[0]) *
+                                100
+                              ).toFixed(2)
+                            : "0.00"}
+                          %
+                        </span>
+                      </div>
                     </div>
                   </div>
-                ) : (
-                  <p>Loading...</p>
                 )}
               </div>
 
+              {/* Buy/Sell Buttons - Takes 1 column */}
+              <div className="space-y-4">
+                <div className="bg-[#0a0e27] border border-[#1a1f3a] rounded-lg p-6">
+                  <h2 className="text-xl font-semibold mb-4 text-white">
+                    Trading
+                  </h2>
+                  <div className="space-y-3">
+                    <button
+                      onClick={() => handleTrade("buy")}
+                      className="w-full bg-green-500/20 hover:bg-green-500/30 text-green-400 font-bold py-4 px-4 rounded border border-green-500/30 transition-colors text-lg"
+                    >
+                      BUY
+                    </button>
+                    <button
+                      onClick={() => handleTrade("sell")}
+                      className="w-full bg-red-500/20 hover:bg-red-500/30 text-red-400 font-bold py-4 px-4 rounded border border-red-500/30 transition-colors text-lg"
+                    >
+                      SELL
+                    </button>
+                    <button
+                      onClick={() => handleTrade("panic")}
+                      className="w-full bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 font-bold py-3 px-4 rounded border border-orange-500/30 transition-colors"
+                    >
+                      PANIC EXIT
+                    </button>
+                  </div>
+                </div>
+
+                {/* Portfolio Summary */}
+                {gameState && (
+                  <div className="bg-[#0a0e27] border border-[#1a1f3a] rounded-lg p-6">
+                    <h2 className="text-xl font-semibold mb-4 text-white">
+                      Portfolio
+                    </h2>
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-gray-400 text-sm">USD Balance</p>
+                        <p className="text-2xl font-bold text-white">
+                          ${gameState.user.portfolio.balanceUSD.toFixed(2)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-gray-400 text-sm">Token Balance</p>
+                        <p className="text-2xl font-bold text-white">
+                          {gameState.user.portfolio.balanceToken.toFixed(4)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-gray-400 text-sm">Realized PnL</p>
+                        <p
+                          className={`text-xl font-bold ${
+                            gameState.user.portfolio.realizedPnl >= 0
+                              ? "text-green-400"
+                              : "text-red-400"
+                          }`}
+                        >
+                          ${gameState.user.portfolio.realizedPnl.toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Trading Signals Panel - Below Chart */}
+            <div className="bg-[#0a0e27] border border-[#1a1f3a] rounded-lg p-6">
+              <h3 className="text-lg font-semibold text-white mb-4">
+                Trading Signals
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* RSI Indicator */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-gray-400">RSI (14)</span>
+                    <span
+                      className={`text-sm font-semibold ${rsiSignal.color}`}
+                    >
+                      {rsi.toFixed(1)}
+                    </span>
+                  </div>
+                  <div className="w-full bg-[#1a1f3a] rounded-full h-2">
+                    <div
+                      className={`h-2 rounded-full ${
+                        rsi < 30
+                          ? "bg-green-400"
+                          : rsi > 70
+                          ? "bg-red-400"
+                          : "bg-blue-400"
+                      }`}
+                      style={{ width: `${rsi}%` }}
+                    ></div>
+                  </div>
+                  <p className={`text-xs mt-1 ${rsiSignal.color}`}>
+                    {rsiSignal.label}
+                  </p>
+                </div>
+
+                {/* Buy Frequency */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-gray-400">Buy Frequency</span>
+                    <span className="text-sm font-semibold text-white">
+                      {buyFrequency.toFixed(2)}/min
+                    </span>
+                  </div>
+                  <div className="text-xs text-gray-500">Last 5 minutes</div>
+                  <div className="mt-2 text-xs text-gray-400">
+                    Total Buys: {buyTimestamps.length}
+                  </div>
+                </div>
+
+                {/* AI Signal */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-gray-400">AI Signal</span>
+                    <span
+                      className={`text-sm font-bold ${aiSignal.color} uppercase`}
+                    >
+                      {aiSignal.signal.replace("_", " ")}
+                    </span>
+                  </div>
+                  <div className="mb-2">
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="text-gray-500">Confidence</span>
+                      <span className="text-white">{aiSignal.confidence}%</span>
+                    </div>
+                    <div className="w-full bg-[#1a1f3a] rounded-full h-2">
+                      <div
+                        className={`h-2 rounded-full ${
+                          aiSignal.confidence >= 70
+                            ? "bg-green-400"
+                            : aiSignal.confidence >= 50
+                            ? "bg-blue-400"
+                            : "bg-red-400"
+                        }`}
+                        style={{ width: `${aiSignal.confidence}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-400 leading-relaxed">
+                    {aiSignal.reasoning}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Additional Info: Level, XP, Settings */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Level & XP */}
               {gameState && (
-                <div className="bg-gray-800 rounded-lg p-6">
-                  <h2 className="text-2xl font-semibold mb-4">
+                <div className="bg-[#0a0e27] border border-[#1a1f3a] rounded-lg p-6">
+                  <h2 className="text-xl font-semibold mb-4 text-white">
                     Level {gameState.user.level}
                   </h2>
-                  <div className="w-full bg-gray-700 rounded-full h-4">
+                  <div className="w-full bg-[#1a1f3a] rounded-full h-4">
                     <div
                       className="bg-blue-500 h-4 rounded-full"
                       style={{
@@ -435,11 +570,13 @@ export default function Home() {
               )}
 
               {/* Settings */}
-              <div className="bg-gray-800 rounded-lg p-6">
-                <h2 className="text-2xl font-semibold mb-4">Settings</h2>
+              <div className="bg-[#0a0e27] border border-[#1a1f3a] rounded-lg p-6">
+                <h2 className="text-xl font-semibold mb-4 text-white">
+                  Settings
+                </h2>
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-sm font-medium mb-2">
+                    <label className="block text-sm font-medium mb-2 text-gray-400">
                       Difficulty
                     </label>
                     <select
@@ -447,7 +584,7 @@ export default function Home() {
                       onChange={(e) =>
                         setDifficulty(e.target.value as DifficultyMode)
                       }
-                      className="w-full bg-gray-700 text-white rounded px-3 py-2"
+                      className="w-full bg-[#1a1f3a] border border-[#2a2f4a] text-white rounded px-3 py-2 focus:outline-none focus:border-blue-500"
                     >
                       <option value="noob">Noob</option>
                       <option value="degen">DeGen</option>
@@ -456,7 +593,7 @@ export default function Home() {
                   </div>
                   <button
                     onClick={handleReset}
-                    className="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded"
+                    className="w-full bg-[#1a1f3a] hover:bg-[#2a2f4a] text-white font-bold py-2 px-4 rounded border border-[#2a2f4a] transition-colors"
                   >
                     Reset Session
                   </button>

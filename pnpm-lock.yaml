@@ -118,6 +118,9 @@ importers:
       '@tradeOS/types':
         specifier: workspace:*
         version: link:../../packages/types
+      lightweight-charts:
+        specifier: ^5.0.9
+        version: 5.0.9
       next:
         specifier: 14.0.4
         version: 14.0.4(react-dom@18.3.1)(react@18.3.1)
@@ -10849,6 +10852,10 @@ packages:
     engines: {node: '> 0.1.90'}
     dev: false
 
+  /fancy-canvas@2.1.0:
+    resolution: {integrity: sha512-nifxXJ95JNLFR2NgRV4/MxVP45G9909wJTEKz5fg/TZS20JJZA6hfgRVh/bC9bwl2zBtBNcYPjiBE4njQHVBwQ==}
+    dev: false
+
   /fast-base64-decode@1.0.0:
     resolution: {integrity: sha512-qwaScUgUGBYeDNRnbc/KyllVU88Jk1pRHPStuF/lO7B0/RTRLj7U0lkdTAutlBblY08rwZDff6tNU9cjv6j//Q==}
     dev: false
@@ -12286,6 +12293,12 @@ packages:
       marky: 1.3.0
     transitivePeerDependencies:
       - supports-color
+    dev: false
+
+  /lightweight-charts@5.0.9:
+    resolution: {integrity: sha512-8oQIis8jfZVfSwz8j9Z5x3O79dIRTkEYI9UY7DKtE4O3ZxlHjMK3L0+4nOVOOFq4FHI/oSIzz1RHeNImCk6/Jg==}
+    dependencies:
+      fancy-canvas: 2.1.0
     dev: false
 
   /lilconfig@3.1.3:

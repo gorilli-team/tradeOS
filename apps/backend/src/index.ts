@@ -24,6 +24,7 @@ import {
 import { z } from "zod";
 import { createAccountAndAirdrop } from "./services/airdrop";
 import { type Address } from "viem";
+import { generateHistoricalPrices } from "./utils/historicalPrices";
 
 const app = express();
 const server = createServer(app);
@@ -286,15 +287,32 @@ app.post("/session/start", async (req: express.Request, res: express.Response) =
     }
   }
 
-  // Start price simulator
+  // Generate historical prices (24 hours of data, 1-minute intervals)
+  const historicalPrices = generateHistoricalPrices(1.0, 24, 1);
+  const lastHistoricalPrice = historicalPrices[historicalPrices.length - 1]?.price || 1.0;
+
+  // Start price simulator with the last historical price as initial
   const simulator = new PriceSimulator({
-    initialPrice: 1.0,
+    initialPrice: lastHistoricalPrice,
     volatility: 0.02,
     difficulty,
     tickInterval: 1000,
   });
 
   priceSimulators.set(userId, simulator);
+
+  // Send initial historical prices to all connected clients
+  const userClients = clients.get(userId);
+  if (userClients) {
+    historicalPrices.forEach((tick) => {
+      const message = JSON.stringify({ type: "price", data: tick });
+      userClients.forEach((client) => {
+        if (client.readyState === 1) {
+          client.send(message);
+        }
+      });
+    });
+  }
 
   simulator.start((price: number, trend: TrendSignal) => {
     const tick: PriceTick = {
@@ -330,6 +348,7 @@ app.post("/session/start", async (req: express.Request, res: express.Response) =
     difficulty,
     smartAccountAddress,
     airdrop: airdropResult,
+    initialPriceHistory: historicalPrices, // Send initial history
   });
 });
 
