@@ -35,6 +35,7 @@ import Trade from "./models/Trade";
 import User from "./models/User";
 import AIAgent from "./models/AIAgent";
 import { getTokenBalance, airdropTokens } from "./services/token";
+import { updateSwapPrice } from "./services/swap";
 import mongoose from "mongoose";
 
 const app = express();
@@ -633,6 +634,13 @@ wss.on("connection", (ws: any) => {
   });
 });
 
+// Track last price update to swap contract (to avoid too frequent updates)
+const lastSwapPriceUpdate = new Map<
+  string,
+  { price: number; timestamp: number }
+>();
+const SWAP_PRICE_UPDATE_INTERVAL = 10000; // Update swap price every 10 seconds max
+
 function broadcastPriceUpdate(userId: string, tick: PriceTick): void {
   // Store price history
   if (!priceHistory.has(userId)) {
@@ -643,6 +651,21 @@ function broadcastPriceUpdate(userId: string, tick: PriceTick): void {
   // Keep last 2000 ticks (for 24h+ of data)
   if (history.length > 2000) {
     history.shift();
+  }
+
+  // Update swap contract price (throttled)
+  const lastUpdate = lastSwapPriceUpdate.get(userId);
+  const now = Date.now();
+  if (
+    !lastUpdate ||
+    now - lastUpdate.timestamp > SWAP_PRICE_UPDATE_INTERVAL ||
+    Math.abs(tick.price - lastUpdate.price) > 0.01 // Update if price changed by >1%
+  ) {
+    // Update swap contract price asynchronously (don't block)
+    updateSwapPrice(tick.price).catch((error) => {
+      console.error(`Failed to update swap price for ${userId}:`, error);
+    });
+    lastSwapPriceUpdate.set(userId, { price: tick.price, timestamp: now });
   }
 
   // Broadcast to WebSocket clients

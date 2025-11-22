@@ -3,7 +3,9 @@ import {
   http,
   createWalletClient,
   formatEther,
+  formatUnits,
   parseEther,
+  parseUnits,
   type Address,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -45,8 +47,11 @@ const ERC20_ABI = [
   },
 ] as const;
 
-// Test token address on Sepolia (using a common test token or deploy our own)
-// For now, we'll use USDC on Sepolia or create a simple airdrop contract
+// USDC on Sepolia testnet
+const USDC_ADDRESS = (process.env.USDC_ADDRESS ||
+  "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238") as Address;
+
+// Test token address on Sepolia (the token users will trade)
 const TEST_TOKEN_ADDRESS = process.env.TEST_TOKEN_ADDRESS as
   | Address
   | undefined;
@@ -58,7 +63,8 @@ export interface TokenBalance {
 }
 
 /**
- * Airdrops test tokens to a smart account address
+ * Airdrops USDC to a smart account address
+ * Users will use USDC to buy the test token via the swap contract
  */
 export async function airdropTokens(
   recipientAddress: Address,
@@ -82,24 +88,14 @@ export async function airdropTokens(
       transport: http(RPC_URL),
     });
 
-    // If we have a test token address, transfer tokens
-    if (TEST_TOKEN_ADDRESS) {
-      const hash = await walletClient.writeContract({
-        address: TEST_TOKEN_ADDRESS,
-        abi: ERC20_ABI,
-        functionName: "transfer",
-        args: [recipientAddress, parseEther(amount)],
-      });
+    // Airdrop USDC (6 decimals) - users will use USDC to buy test tokens
+    const usdcAmount = parseUnits(amount, 6);
 
-      await publicClient.waitForTransactionReceipt({ hash });
-
-      return { success: true, txHash: hash };
-    }
-
-    // Otherwise, send native ETH as test tokens
-    const hash = await walletClient.sendTransaction({
-      to: recipientAddress,
-      value: parseEther(amount),
+    const hash = await walletClient.writeContract({
+      address: USDC_ADDRESS,
+      abi: ERC20_ABI,
+      functionName: "transfer",
+      args: [recipientAddress, usdcAmount],
     });
 
     await publicClient.waitForTransactionReceipt({ hash });
@@ -115,29 +111,54 @@ export async function airdropTokens(
 }
 
 /**
- * Gets the token balance for an address
+ * Gets the USDC balance for an address
  */
-export async function getTokenBalance(
+export async function getUSDCBalance(
+  address: Address
+): Promise<TokenBalance | null> {
+  if (!RPC_URL) {
+    return null;
+  }
+
+  try {
+    const publicClient = createPublicClient({
+      chain: sepolia,
+      transport: http(RPC_URL),
+    });
+
+    const [balance, decimals] = await Promise.all([
+      publicClient.readContract({
+        address: USDC_ADDRESS,
+        abi: ERC20_ABI,
+        functionName: "balanceOf",
+        args: [address],
+      }),
+      publicClient.readContract({
+        address: USDC_ADDRESS,
+        abi: ERC20_ABI,
+        functionName: "decimals",
+      }),
+    ]);
+
+    return {
+      address: USDC_ADDRESS,
+      balance: formatUnits(balance, Number(decimals)),
+      decimals: Number(decimals),
+    };
+  } catch (error) {
+    console.error("Error getting USDC balance:", error);
+    return null;
+  }
+}
+
+/**
+ * Gets the TestToken balance for an address
+ */
+export async function getTestTokenBalance(
   address: Address
 ): Promise<TokenBalance | null> {
   if (!RPC_URL || !TEST_TOKEN_ADDRESS) {
-    // If no token address, return ETH balance
-    try {
-      const publicClient = createPublicClient({
-        chain: sepolia,
-        transport: http(RPC_URL || "https://eth-sepolia.g.alchemy.com/v2/demo"),
-      });
-
-      const balance = await publicClient.getBalance({ address });
-      return {
-        address: address,
-        balance: formatEther(balance),
-        decimals: 18,
-      };
-    } catch (error) {
-      console.error("Error getting balance:", error);
-      return null;
-    }
+    return null;
   }
 
   try {
@@ -162,11 +183,22 @@ export async function getTokenBalance(
 
     return {
       address: TEST_TOKEN_ADDRESS,
-      balance: formatEther(balance),
+      balance: formatUnits(balance, Number(decimals)),
       decimals: Number(decimals),
     };
   } catch (error) {
-    console.error("Error getting token balance:", error);
+    console.error("Error getting TestToken balance:", error);
     return null;
   }
+}
+
+/**
+ * Gets the token balance for an address (USDC for checking if user can trade)
+ * This is used to check if user has tokens to start trading
+ */
+export async function getTokenBalance(
+  address: Address
+): Promise<TokenBalance | null> {
+  // Check USDC balance (users need USDC to buy test tokens)
+  return await getUSDCBalance(address);
 }
