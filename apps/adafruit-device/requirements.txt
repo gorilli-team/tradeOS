@@ -1,0 +1,5 @@
+websocket-client>=1.6.0
+requests>=2.31.0
+adafruit-circuitpython-neopixel>=6.0.0
+RPi.GPIO>=0.7.1
+

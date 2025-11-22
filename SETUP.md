@@ -156,3 +156,73 @@ If you want to use a custom ERC20 token instead of native ETH:
   - Atlas: `mongodb+srv://username:password@cluster.mongodb.net/tradeOS?retryWrites=true&w=majority`
 - **Note**: The app will continue to work without MongoDB, but trades won't be saved to the database
 
+## Adafruit Device Connection
+
+### Quick Start (Python Script)
+
+1. **Install dependencies**:
+   ```bash
+   cd apps/adafruit-device
+   pip install -r requirements.txt
+   ```
+
+2. **Set your wallet address** (from Privy):
+   ```bash
+   export USER_ID=0xYourWalletAddressHere
+   export WS_URL=ws://localhost:3001
+   export API_URL=http://localhost:3001
+   ```
+
+3. **Run the device script**:
+   ```bash
+   python adafruit_device.py
+   ```
+
+4. **If using physical buttons** (Raspberry Pi):
+   - Connect buttons to GPIO pins 5, 6, and 13
+   - The script will automatically detect and use them
+
+5. **If using keyboard** (for testing):
+   - Press `B` for Buy
+   - Press `S` for Sell
+   - Press `P` for Panic Exit
+   - Press `Q` to quit
+
+### Hardware Setup
+
+#### Buttons
+- **Button 1** (GPIO 5): BUY
+- **Button 2** (GPIO 6): SELL
+- **Button 3** (GPIO 13): PANIC EXIT
+
+#### LED/NeoPixel
+- **NeoPixel pin**: GPIO 18 (or use built-in on Circuit Playground)
+- **Colors**:
+  - 🟢 Green: Up trend
+  - 🔴 Red: Down trend
+  - 🟡 Yellow: Sideways
+  - 🟣 Purple: Whale activity
+  - 🟠 Orange: Rug pull
+
+### CircuitPython Setup (Adafruit Feather/ESP32)
+
+1. **Install CircuitPython** on your board
+2. **Copy `adafruit_device.py`** to your board's CIRCUITPY drive
+3. **Install libraries**:
+   ```bash
+   circup install adafruit_requests adafruit_minimqtt adafruit_neopixel
+   ```
+4. **Update WiFi credentials** in the script
+5. **Set USER_ID** to your wallet address
+
+### Testing
+
+1. Start the backend: `cd apps/backend && pnpm dev`
+2. Connect your wallet in the frontend
+3. Start a trading session
+4. Run the device script
+5. The LED should change colors based on price trends
+6. Press buttons (or keyboard keys) to execute trades
+
+For more details, see `apps/adafruit-device/README.md`
+
