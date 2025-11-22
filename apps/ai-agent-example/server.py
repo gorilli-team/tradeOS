@@ -50,6 +50,7 @@ except ImportError:
 API_URL = os.getenv("API_URL", "http://localhost:3001")
 WS_URL = os.getenv("WS_URL", "ws://localhost:3001")
 AGENT_WALLET = os.getenv("AGENT_WALLET", "")
+AGENT_PRIVATE_KEY = os.getenv("AGENT_PRIVATE_KEY", "")  # Optional: Private key for smart account control
 AGENT_PORT = int(os.getenv("AGENT_PORT", "8000"))
 
 # Trading parameters
@@ -73,8 +74,10 @@ app = FastAPI(title="tradeOS AI Agent", version="1.0.0")
 class MomentumAgent:
     """Momentum-based trading agent"""
 
-    def __init__(self, wallet_address: str):
+    def __init__(self, wallet_address: str, private_key: str = ""):
         self.wallet_address = wallet_address
+        self.private_key = private_key  # Agent's private key (never sent to backend)
+        self.smart_account_address: Optional[str] = None  # Smart account address (managed client-side)
         self.price_history: deque = deque(maxlen=100)
         self.is_connected = False
         self.has_tokens = False
@@ -185,17 +188,69 @@ class MomentumAgent:
             logger.error(f"❌ Error executing {trade_type}: {e}")
             return False
 
+    async def create_smart_account(self) -> Optional[str]:
+        """Create a smart account using the agent's private key (client-side)"""
+        if not self.private_key:
+            logger.warning("⚠️  No private key provided. Agent will use backend-managed account.")
+            return None
+        
+        try:
+            # For now, we'll derive a wallet address from the private key
+            # In production, you'd use Alchemy SDK or similar to create ERC-4337 smart account
+            # This is a simplified approach - the agent manages its own wallet
+            
+            # Import eth_account for wallet management
+            try:
+                from eth_account import Account
+            except ImportError:
+                logger.error("❌ eth_account not installed. Install with: pip install eth-account")
+                return None
+            
+            # Create account from private key
+            account = Account.from_key(self.private_key)
+            wallet_address = account.address
+            
+            # For ERC-4337 smart accounts, you would:
+            # 1. Use Alchemy SDK (via API or Python wrapper) to create smart account
+            # 2. Or use a library like `account-abstraction` Python SDK
+            # 3. The smart account address is deterministic based on owner + factory
+            
+            # For now, we'll use the EOA address as identifier
+            # In production, create actual ERC-4337 smart account using Alchemy API
+            logger.info(f"🔑 Agent wallet address: {wallet_address}")
+            logger.info("💡 Note: For full ERC-4337 support, use Alchemy SDK to create smart account")
+            
+            # Return the wallet address (or smart account address if created)
+            return wallet_address
+            
+        except Exception as e:
+            logger.error(f"❌ Error creating smart account: {e}")
+            return None
+
     async def start_session(self) -> bool:
         """Start a trading session"""
         try:
+            # If agent has private key, create/manage smart account client-side
+            if self.private_key:
+                self.smart_account_address = await self.create_smart_account()
+                logger.info(f"🔑 Agent managing its own smart account: {self.smart_account_address}")
+            
             url = f"{API_URL}/session/start"
+            payload = {
+                "userId": self.wallet_address,
+                "difficulty": "pro",
+                "ownerAddress": self.wallet_address,
+            }
+            
+            # If agent manages its own smart account, provide the address
+            # (never send the private key!)
+            if self.smart_account_address:
+                payload["smartAccountAddress"] = self.smart_account_address
+                logger.info("✅ Providing smart account address to backend (private key stays client-side)")
+            
             response = requests.post(
                 url,
-                json={
-                    "userId": self.wallet_address,
-                    "difficulty": "pro",
-                    "ownerAddress": self.wallet_address,
-                },
+                json=payload,
                 headers={"Content-Type": "application/json"},
                 timeout=10,
             )
@@ -204,7 +259,12 @@ class MomentumAgent:
                 data = response.json()
                 if data.get("success"):
                     self.session_started = True
+                    # Update smart account address if backend created one
+                    if data.get("smartAccountAddress") and not self.smart_account_address:
+                        self.smart_account_address = data.get("smartAccountAddress")
                     logger.info("✅ Trading session started")
+                    if self.smart_account_address:
+                        logger.info(f"📝 Smart account: {self.smart_account_address}")
                     return True
                 else:
                     logger.error(f"❌ Failed to start session: {data.get('error')}")
@@ -220,8 +280,10 @@ class MomentumAgent:
         """Check if agent has tokens"""
         try:
             url = f"{API_URL}/tokens/balance"
+            # Check balance of smart account if available, otherwise wallet address
+            address_to_check = self.smart_account_address or self.wallet_address
             response = requests.get(
-                url, params={"address": self.wallet_address}, timeout=5
+                url, params={"address": address_to_check}, timeout=5
             )
 
             if response.status_code == 200:
@@ -347,11 +409,13 @@ async def startup():
     logger.info("tradeOS AI Trading Agent Server")
     logger.info("=" * 50)
     logger.info(f"Agent Wallet: {AGENT_WALLET}")
+    if AGENT_PRIVATE_KEY:
+        logger.info("🔑 Private key provided - agent will control its own smart account")
     logger.info(f"API URL: {API_URL}")
     logger.info(f"WS URL: {WS_URL}")
     logger.info("=" * 50)
 
-    agent = MomentumAgent(AGENT_WALLET)
+    agent = MomentumAgent(AGENT_WALLET, AGENT_PRIVATE_KEY)
 
     # Start trading session
     if not await agent.start_session():

@@ -12,13 +12,17 @@ export interface AirdropResult {
 
 /**
  * Creates a smart account and airdrops test tokens to it
+ * Note: This uses the backend's private key. Agents should manage their own
+ * smart accounts client-side and provide the address to the backend.
+ * @param ownerAddress - The owner's wallet address
+ * @param tokenAmount - Amount of tokens to airdrop (default: "1000")
  */
 export async function createAccountAndAirdrop(
   ownerAddress: Address,
   tokenAmount: string = "1000"
 ): Promise<AirdropResult> {
   try {
-    // Step 1: Create or get smart account
+    // Step 1: Create or get smart account (using backend's key)
     console.log(`Creating smart account for owner: ${ownerAddress}`);
     const smartAccount = await getOrCreateSmartAccount(ownerAddress);
     console.log(`Smart account created: ${smartAccount.address}`);

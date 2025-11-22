@@ -34,7 +34,7 @@ import connectDB from "./db/connection";
 import Trade from "./models/Trade";
 import User from "./models/User";
 import AIAgent from "./models/AIAgent";
-import { getTokenBalance } from "./services/token";
+import { getTokenBalance, airdropTokens } from "./services/token";
 import mongoose from "mongoose";
 
 const app = express();
@@ -438,6 +438,10 @@ app.post(
     const userId = req.body.userId || "default";
     const difficulty = (req.body.difficulty || "noob") as DifficultyMode;
     const ownerAddress = req.body.ownerAddress as Address | undefined;
+    // Optional: Smart account address if agent manages its own (client-side)
+    const smartAccountAddress = req.body.smartAccountAddress as
+      | Address
+      | undefined;
 
     // Stop existing simulator if any
     const existingSimulator = priceSimulators.get(userId);
@@ -449,13 +453,40 @@ app.post(
     const user = createUser(userId, difficulty);
     users.set(userId, user);
 
-    // Create smart account and airdrop tokens if owner address is provided
-    let smartAccountAddress: Address | undefined;
+    // Handle smart account setup
+    let finalSmartAccountAddress: Address | undefined;
     let airdropResult:
       | { success: boolean; txHash?: string; error?: string }
       | undefined;
 
-    if (ownerAddress) {
+    if (smartAccountAddress) {
+      // Agent manages its own smart account (client-side)
+      // Backend just tracks the address for simulation and results
+      console.log(
+        `Agent ${userId} provided its own smart account: ${smartAccountAddress}`
+      );
+      finalSmartAccountAddress = smartAccountAddress;
+      smartAccounts.set(userId, finalSmartAccountAddress);
+
+      // Check if tokens are already present (agent may have funded it)
+      const balance = await getTokenBalance(smartAccountAddress);
+      if (balance && parseFloat(balance.balance) > 0) {
+        console.log(`Smart account already has tokens: ${balance.balance}`);
+        airdropResult = {
+          success: true,
+        };
+      } else {
+        // Backend can still airdrop tokens for simulation purposes
+        console.log(`Airdropping tokens to agent's smart account...`);
+        const result = await airdropTokens(smartAccountAddress, "1000");
+        airdropResult = {
+          success: result.success,
+          txHash: result.txHash,
+          error: result.error,
+        };
+      }
+    } else if (ownerAddress) {
+      // Regular user: backend creates smart account (for frontend users)
       try {
         console.log(
           `Creating smart account for user ${userId} with owner ${ownerAddress}`
@@ -463,14 +494,14 @@ app.post(
         const result = await createAccountAndAirdrop(ownerAddress, "1000");
 
         if (result.success && result.smartAccountAddress) {
-          smartAccountAddress = result.smartAccountAddress;
-          smartAccounts.set(userId, smartAccountAddress);
+          finalSmartAccountAddress = result.smartAccountAddress;
+          smartAccounts.set(userId, finalSmartAccountAddress);
           airdropResult = {
             success: true,
             txHash: result.txHash,
           };
           console.log(
-            `Smart account created: ${smartAccountAddress}, Airdrop tx: ${result.txHash}`
+            `Smart account created: ${finalSmartAccountAddress}, Airdrop tx: ${result.txHash}`
           );
         } else {
           console.error(`Failed to create smart account: ${result.error}`);
@@ -551,7 +582,7 @@ app.post(
       success: true,
       userId,
       difficulty,
-      smartAccountAddress,
+      smartAccountAddress: finalSmartAccountAddress,
       airdrop: airdropResult,
       initialPriceHistory: historicalPrices, // Send initial history
     });

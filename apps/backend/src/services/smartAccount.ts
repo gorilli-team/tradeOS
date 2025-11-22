@@ -30,8 +30,9 @@ export interface SmartAccountInfo {
 
 /**
  * Creates or retrieves a smart account for a given owner address
- * Note: This creates a smart account using the owner's address as the signer
- * In production, you'd want to use the actual user's signer from their wallet
+ * Note: This uses the backend's private key. Agents should manage their own
+ * smart accounts client-side and provide the address to the backend.
+ * @param ownerAddress - The owner's wallet address
  */
 export async function getOrCreateSmartAccount(
   ownerAddress: Address
@@ -53,9 +54,8 @@ export async function getOrCreateSmartAccount(
       rpcUrl = RPC_URL;
     }
 
-    // Create a signer from a private key (in production, use the user's actual signer)
-    // For now, we'll use a deterministic approach based on owner address
-    // In a real app, you'd get the signer from the user's connected wallet
+    // Use backend's private key for smart account creation
+    // Agents manage their own private keys client-side
     const signer = new LocalAccountSigner(
       privateKeyToAccount(PRIVATE_KEY as `0x${string}`)
     );
