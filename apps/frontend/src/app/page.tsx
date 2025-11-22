@@ -337,10 +337,10 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-[#050812] text-white">
       <Header userPoints={userPoints} userRank={userRank} />
-      <div className="max-w-7xl mx-auto p-8">
+      <div className="max-w-7xl mx-auto p-6">
         {/* Connection Status */}
         {isSessionStarted && (
-          <div className="mb-4 text-center">
+          <div className="mb-3 text-center">
             <span
               className={`px-4 py-2 rounded text-sm font-medium ${
                 isConnected
@@ -355,7 +355,7 @@ export default function Home() {
 
         {/* Device Signal Indicator */}
         {deviceSignal && (
-          <div className="mb-4 text-center">
+          <div className="mb-3 text-center">
             <div
               className={`inline-block px-6 py-3 rounded-lg ${
                 deviceSignal.color
@@ -371,11 +371,11 @@ export default function Home() {
 
         {/* Always show chart - trading requires tokens */}
         {priceHistory.length > 0 ? (
-          <div className="space-y-6">
+          <div className="space-y-4">
             {/* Main Trading Area: Chart on Left, Buy/Sell on Right */}
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
               {/* TradingView Chart - Takes 3 columns */}
-              <div className="lg:col-span-3 bg-[#0a0e27] border border-[#1a1f3a] rounded-lg p-6">
+              <div className="lg:col-span-3 bg-[#0a0e27] border border-[#1a1f3a] rounded-lg p-4">
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <h2 className="text-xl font-semibold text-white mb-1">
@@ -407,7 +407,7 @@ export default function Home() {
                   </div>
                 </div>
                 {priceHistory.length > 0 && (
-                  <TradingViewChart data={priceHistory} height={500} />
+                  <TradingViewChart data={priceHistory} height={350} />
                 )}
                 {gameState && (
                   <div className="mt-4 flex items-center justify-between text-sm">
@@ -565,11 +565,11 @@ export default function Home() {
             </div>
 
             {/* Trading Signals Panel - Below Chart */}
-            <div className="bg-[#0a0e27] border border-[#1a1f3a] rounded-lg p-6">
-              <h3 className="text-lg font-semibold text-white mb-4">
+            <div className="bg-[#0a0e27] border border-[#1a1f3a] rounded-lg p-4">
+              <h3 className="text-lg font-semibold text-white mb-3">
                 Trading Signals
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* RSI Indicator */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
