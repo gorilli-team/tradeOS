@@ -155,7 +155,7 @@ function simulateButtonPress(button: string): void {
 }
 
 // CLI interface for testing
-console.log("🎮 MemeTrainer Device Simulator");
+console.log("tradeOS Device Simulator");
 console.log("================================\n");
 
 // Connect to backend

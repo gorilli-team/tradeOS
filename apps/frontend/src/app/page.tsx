@@ -142,7 +142,7 @@ export default function Home() {
   return (
     <main className="min-h-screen p-8 bg-gradient-to-br from-gray-900 to-gray-800 text-white">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-4xl font-bold mb-8 text-center">🚀 MemeTrainer</h1>
+        <h1 className="text-4xl font-bold mb-8 text-center">tradeOS</h1>
 
         {/* Connection Status */}
         <div className="mb-4 text-center">

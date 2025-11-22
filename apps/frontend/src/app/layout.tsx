@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "MemeTrainer - Gamified Meme Trading Simulator",
-  description: "Trade meme tokens with a physical controller",
+  title: "tradeOS - Gamified Trading Simulator",
+  description: "Trade tokens with a physical controller",
 };
 
 export default function RootLayout({
