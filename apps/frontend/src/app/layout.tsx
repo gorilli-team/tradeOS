@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { PrivyProviderWrapper } from "./privy-provider";
 
 export const metadata: Metadata = {
   title: "tradeOS - Gamified Trading Simulator",
@@ -13,7 +14,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <PrivyProviderWrapper>{children}</PrivyProviderWrapper>
+      </body>
     </html>
   );
 }
